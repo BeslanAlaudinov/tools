@@ -1544,6 +1544,59 @@ svg {
   }
 }
 
+/* ---------- phone notice (apps/web/src/app/MobileNotice.tsx) ---------- */
+/* desktop only for now: on a phone or a touch tablet the notice covers the page */
+.t-mobile {
+  display: none;
+}
+@media (max-width: 767px), (pointer: coarse) and (max-width: 1100px) {
+  .t-mobile {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: 24px 16px;
+    background: var(--t-bg);
+    overflow-y: auto;
+  }
+  /* the desktop layout under it is 1280px wide and would make the phone zoom the whole page out;
+     while the notice is up the page is just the notice (dismissing removes it, and the site comes back) */
+  body:has(> .t-mobile) > :not(.t-mobile) {
+    display: none;
+  }
+}
+.t-mobile-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--t-surface);
+  border-radius: 24px;
+  padding: 16px 16px 12px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+}
+.t-mobile-img {
+  width: 100%;
+  aspect-ratio: 395 / 498;
+  object-fit: cover;
+  border-radius: 16px;
+  background: var(--t-card);
+}
+.t-mobile-card h1 {
+  margin: 6px 0 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.t-mobile-card p {
+  margin: 0;
+  color: var(--t-muted);
+  line-height: 1.45;
+  max-width: 32ch;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .t-spin {
     animation-duration: 2.4s;

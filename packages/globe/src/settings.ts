@@ -162,7 +162,7 @@ export const DEFAULT_SETTINGS: GlobeSettings = {
   hiColor: '#ffffff',
   hiSize: 1.3,
   hiDim: 0.4,
-  markers: [{ id: 1, label: 'Нидерланды', lat: 52.37, lon: 4.9 }],
+  markers: [{ id: 1, label: 'Грозный', lat: 43.32, lon: 45.7 }],
   markerStyle: 'glass-dark',
   markerSize: 'M',
   markerAccent: '#7c5cff',
