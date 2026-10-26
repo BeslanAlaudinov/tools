@@ -4,6 +4,8 @@ import * as Popover from '@radix-ui/react-popover';
 import {
   DEFAULT_SETTINGS,
   FX_DEFAULTS,
+  MAX_ZOOM,
+  MIN_ZOOM,
   alignOffset,
   frameSize,
   randomLook,
@@ -40,7 +42,7 @@ import { GlobeToolProvider, type ToastRequest } from './context';
 import { CodeExportPanel, ImageExportPanel, type Scale } from './export';
 import { GlobeCanvas } from './GlobeCanvas';
 import { PreviewDialog } from './Preview';
-import { FX_OPTIONS, globeTabs, type TabId } from './schema';
+import { FX_OFF_ICON, FX_OPTIONS, globeTabs, type TabId } from './schema';
 import { CountriesSection, CustomFrameSection, MarkersSection, PresetsSection, RoutesSection } from './sections';
 import { history, hydrateGlobeStore, useGlobeStore } from './store';
 
@@ -166,7 +168,7 @@ function GlobeToolReady() {
     notify({ text: 'Стиль перемешан', undo: true });
   };
   const onReset = (scope: ResetScope) => {
-    replace(resetSettings(settings, scope === 'style'));
+    replace(resetSettings(settings, scope));
     notify({ text: scope === 'style' ? 'Стиль сброшен' : 'Всё сброшено', undo: true });
   };
 
@@ -182,6 +184,7 @@ function GlobeToolReady() {
     ? `Ещё удалятся ${lost.length > 1 ? `${lost.slice(0, -1).join(', ')} и ${lost.at(-1)}` : lost[0]}.`
     : 'Меток, маршрутов и выделенных стран сейчас нет.';
 
+  const atHome = settings.zoom === DEFAULT_SETTINGS.zoom && settings.offX === 0 && settings.offY === 0;
   const fxLabel = settings.fxOn ? (FX_OPTIONS.find(o => o.value === settings.fx)?.label ?? '') : 'Без эффекта';
 
   return (
@@ -266,6 +269,7 @@ function GlobeToolReady() {
                           aria-checked={!settings.fxOn}
                           onClick={() => set({ fxOn: false })}
                         >
+                          {FX_OFF_ICON}
                           Без эффекта
                         </button>
                       </Popover.Close>
@@ -297,8 +301,18 @@ function GlobeToolReady() {
                 </button>
                 <DockSeparator />
                 <IconButton
+                  label="Вернуть масштаб и положение"
+                  disabled={atHome}
+                  onClick={() => set({ zoom: DEFAULT_SETTINGS.zoom, offX: 0, offY: 0 })}
+                >
+                  <Icons.Fit />
+                </IconButton>
+                <IconButton
                   label="Уменьшить"
-                  onClick={() => set({ zoom: Math.max(0.2, +(settings.zoom - 0.1).toFixed(2)) }, { continuous: true })}
+                  disabled={settings.zoom <= MIN_ZOOM}
+                  onClick={() =>
+                    set({ zoom: Math.max(MIN_ZOOM, +(settings.zoom - 0.1).toFixed(2)) }, { continuous: true })
+                  }
                 >
                   <Icons.Minus size={16} />
                 </IconButton>
@@ -307,7 +321,10 @@ function GlobeToolReady() {
                 </span>
                 <IconButton
                   label="Увеличить"
-                  onClick={() => set({ zoom: Math.min(4, +(settings.zoom + 0.1).toFixed(2)) }, { continuous: true })}
+                  disabled={settings.zoom >= MAX_ZOOM}
+                  onClick={() =>
+                    set({ zoom: Math.min(MAX_ZOOM, +(settings.zoom + 0.1).toFixed(2)) }, { continuous: true })
+                  }
                 >
                   <Icons.Plus size={16} />
                 </IconButton>

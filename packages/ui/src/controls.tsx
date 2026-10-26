@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 import { hexToHsv, hsvToHex, normalizeHex, recentColors, type Hsv } from './color';
-import { Check, ChevronDown } from './icons';
+import { Check, ChevronDown, Spinner } from './icons';
 import type { Option } from './schema';
 
 // ---------- buttons ----------
@@ -258,10 +258,12 @@ export function Toggle({
   checked,
   onChange,
   label,
+  disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -270,6 +272,7 @@ export function Toggle({
       className="t-tgl"
       aria-checked={checked}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
     />
   );
@@ -280,11 +283,13 @@ export function ToggleRow({
   hint,
   checked,
   onChange,
+  disabled,
 }: {
   label: string;
   hint?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="t-trow">
@@ -292,7 +297,7 @@ export function ToggleRow({
         {label}
         {hint && <small>{hint}</small>}
       </div>
-      <Toggle checked={checked} onChange={onChange} label={label} />
+      <Toggle checked={checked} onChange={onChange} label={label} disabled={disabled} />
     </div>
   );
 }
@@ -392,7 +397,7 @@ export function Dropdown<V extends string | number>({
         if (v !== undefined) onChange(v);
       }}
     >
-      <Select.Trigger className="t-dd" aria-label={label}>
+      <Select.Trigger className="t-dd" aria-label={label} title={options.find(o => o.value === value)?.label}>
         <Select.Value placeholder={placeholder} />
         <Select.Icon>
           <ChevronDown size={12} />
@@ -600,5 +605,57 @@ export function ColorRow({
       <span className="t-lbl">{label}</span>
       <HexField label={label} value={value} onChange={onChange} palette={palette} />
     </div>
+  );
+}
+
+// ---------- action buttons with status ----------
+
+export type ActionState = 'idle' | 'busy' | 'done';
+
+/**
+ * Runs an action and reports busy → done (for a moment) → idle. A failed action goes straight back to idle
+ * and rethrows, so the caller can show what went wrong.
+ */
+export function useActionFeedback(doneMs = 1600) {
+  const [state, setState] = useState<ActionState>('idle');
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  // the action starts synchronously, inside the click, so clipboard and download permissions hold
+  const run = async (action: () => unknown): Promise<void> => {
+    clearTimeout(timer.current);
+    setState('busy');
+    try {
+      await action();
+    } catch (err) {
+      setState('idle');
+      throw err;
+    }
+    setState('done');
+    timer.current = setTimeout(() => setState('idle'), doneMs);
+  };
+  return [state, run] as const;
+}
+
+/** A pill that says what its action is doing: "Готовлю…" with a spinner, then "Сохранено" with a check. */
+export function StatusPill({
+  state,
+  labels,
+  onClick,
+  ...rest
+}: PillProps & { state: ActionState; labels: { idle: string; busy: string; done: string } }) {
+  const busy = state === 'busy';
+  return (
+    <Pill
+      {...rest}
+      aria-busy={busy || undefined}
+      aria-disabled={busy || undefined}
+      onClick={e => {
+        if (!busy) onClick?.(e);
+      }}
+    >
+      {busy && <Spinner size={18} className="t-spin" />}
+      {state === 'done' && <Check size={18} className="t-pop-in" />}
+      <span aria-live="polite">{labels[state]}</span>
+    </Pill>
   );
 }

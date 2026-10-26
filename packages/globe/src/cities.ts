@@ -72,3 +72,22 @@ export const REGIONS: readonly Place[] = [
   { name: 'Северный полюс', lat: 90, lon: 0 },
   { name: 'Антарктида', lat: -90, lon: 0 },
 ];
+
+/** The city closest to a point, if one is within `maxKm`; used to name a marker placed by hand. */
+export function nearestCity(cities: readonly City[], lat: number, lon: number, maxKm = 75): City | null {
+  const R = 6371;
+  const rad = Math.PI / 180;
+  let best: City | null = null;
+  let bestKm = maxKm;
+  for (const c of cities) {
+    const dLat = (c.lat - lat) * rad;
+    const dLon = (c.lon - lon) * rad;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * rad) * Math.cos(c.lat * rad) * Math.sin(dLon / 2) ** 2;
+    const km = 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+    if (km < bestKm) {
+      best = c;
+      bestKm = km;
+    }
+  }
+  return best;
+}

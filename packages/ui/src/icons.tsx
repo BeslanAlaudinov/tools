@@ -168,3 +168,5 @@ export const AlignBottom = alignIcon('M4 20h16', [
   [7, 4, 4, 12],
   [13, 9, 4, 7],
 ]);
+// busy indicator; the `t-spin` class turns it
+export const Spinner = make(<path d="M12 3a9 9 0 1 0 9 9" />, { strokeWidth: 2.5 });

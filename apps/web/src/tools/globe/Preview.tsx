@@ -84,7 +84,13 @@ export function PreviewDialog({
             </Dialog.Close>
           </div>
           <div className="t-preview-stage">
-            <div className="t-frame" style={{ width: fit.w, height: fit.h }}>
+            {/* exact edges, as in the exported file: no rounding, the outline sits outside */}
+            <div
+              className="t-frame"
+              data-exact=""
+              data-transparent={settings.bgMode === 'transparent' || undefined}
+              style={{ width: fit.w, height: fit.h }}
+            >
               <canvas ref={canvas} aria-label="Кадр глобуса" />
               <canvas ref={overlay} data-overlay="" aria-hidden="true" />
             </div>

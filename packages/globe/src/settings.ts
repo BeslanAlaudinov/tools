@@ -197,6 +197,21 @@ export const DEFAULT_SETTINGS: GlobeSettings = {
 /** Keys that belong to content the user built by hand. "Reset style" keeps them. */
 export const CONTENT_KEYS = ['countries', 'markers', 'routes'] as const satisfies readonly (keyof GlobeSettings)[];
 
+/** The frame and where the globe sits in it (the «Кадр» tab). Presets and "reset style" leave them alone. */
+export const FRAME_KEYS = [
+  'aspect',
+  'customW',
+  'customH',
+  'zoom',
+  'offX',
+  'offY',
+  'roll',
+] as const satisfies readonly (keyof GlobeSettings)[];
+
+function keep(next: GlobeSettings, current: GlobeSettings, keys: readonly (keyof GlobeSettings)[]) {
+  for (const k of keys) (next as unknown as Record<string, unknown>)[k] = structuredClone(current[k]);
+}
+
 /** Changing these rebuilds the dot buffers; everything else is a uniform update. */
 export const GEOMETRY_KEYS = [
   'density',
@@ -227,6 +242,13 @@ export function frameSize(s: Pick<GlobeSettings, 'aspect' | 'customW' | 'customH
   return { w: f.w, h: f.h };
 }
 
+/** How far the globe can be shifted off the frame center, in clip units (2 = 200%: fully past the edge). */
+export const MAX_OFFSET = 2;
+
+/** Zoom range: the globe's radius as a share of half the frame height. */
+export const MIN_ZOOM = 0.2;
+export const MAX_ZOOM = 4;
+
 export type Align = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
 
 /**
@@ -240,7 +262,7 @@ export function alignOffset(
   const { w, h } = frameSize(s);
   const rx = s.zoom / (w / h);
   const ry = s.zoom;
-  const fit = (v: number) => Number(Math.max(-1.5, Math.min(1.5, v)).toFixed(4));
+  const fit = (v: number) => Number(Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, v)).toFixed(4));
   switch (align) {
     case 'left':
       return { offX: fit(-1 + rx) };
@@ -415,29 +437,23 @@ export const PRESETS: Preset[] = [
   },
 ];
 
-/** Settings for a preset: defaults, then the preset, then the user's content kept as is. */
+/** Settings for a preset: defaults, then the preset, then the user's content and frame kept as they are. */
 export function applyPreset(current: GlobeSettings, preset: Preset): GlobeSettings {
   const next: GlobeSettings = { ...DEFAULT_SETTINGS, ...preset.values, preset: preset.id };
-  for (const k of CONTENT_KEYS) (next as unknown as Record<string, unknown>)[k] = current[k];
-  // frame and content are not style
-  next.aspect = current.aspect;
-  next.customW = current.customW;
-  next.customH = current.customH;
-  next.zoom = current.zoom;
-  next.offX = current.offX;
-  next.offY = current.offY;
+  keep(next, current, CONTENT_KEYS);
+  keep(next, current, FRAME_KEYS);
   return next;
 }
 
-/** Settings reset to defaults; with keepContent the markers, routes and countries stay. */
-export function resetSettings(current: GlobeSettings, keepContent: boolean): GlobeSettings {
+/**
+ * Settings back to defaults. 'style' keeps what the user built (markers, routes, countries) and the frame;
+ * 'all' drops everything.
+ */
+export function resetSettings(current: GlobeSettings, scope: 'style' | 'all'): GlobeSettings {
   const next: GlobeSettings = structuredClone(DEFAULT_SETTINGS);
-  if (keepContent)
-    for (const k of CONTENT_KEYS) (next as unknown as Record<string, unknown>)[k] = structuredClone(current[k]);
-  else {
-    next.markers = [];
-    next.routes = [];
-    next.countries = [];
+  if (scope === 'style') {
+    keep(next, current, CONTENT_KEYS);
+    keep(next, current, FRAME_KEYS);
   }
   return next;
 }

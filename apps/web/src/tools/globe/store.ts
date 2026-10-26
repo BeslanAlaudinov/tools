@@ -1,24 +1,20 @@
 'use client';
 
-import { DEFAULT_SETTINGS, DEFAULT_VIEW, PRESETS, type GlobeSettings, type GlobeView } from '@tools/globe';
+import {
+  CONTENT_KEYS,
+  DEFAULT_SETTINGS,
+  DEFAULT_VIEW,
+  FRAME_KEYS,
+  PRESETS,
+  type GlobeSettings,
+  type GlobeView,
+} from '@tools/globe';
 import { temporal } from 'zundo';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 /** Keys that are not part of the look: changing them keeps the selected preset. */
-const NOT_STYLE = new Set<keyof GlobeSettings>([
-  'countries',
-  'markers',
-  'routes',
-  'aspect',
-  'customW',
-  'customH',
-  'zoom',
-  'offX',
-  'offY',
-  'preset',
-  'countryClick',
-]);
+const NOT_STYLE = new Set<keyof GlobeSettings>([...CONTENT_KEYS, ...FRAME_KEYS, 'preset', 'countryClick']);
 
 export interface EditMeta {
   /** Part of a drag or typing burst: merges with the previous edit into one undo step. */

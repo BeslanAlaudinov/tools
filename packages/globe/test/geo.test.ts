@@ -14,9 +14,17 @@ import {
   rotationMatrix,
   subsolarPoint,
 } from '../src/geo';
-import { DEFAULT_SETTINGS, PRESETS, alignOffset, applyPreset, frameSize, resetSettings } from '../src/settings';
+import {
+  DEFAULT_SETTINGS,
+  MAX_OFFSET,
+  PRESETS,
+  alignOffset,
+  applyPreset,
+  frameSize,
+  resetSettings,
+} from '../src/settings';
 import { hsl, randomLook } from '../src/shuffle';
-import { parseCities, searchCities } from '../src/cities';
+import { nearestCity, parseCities, searchCities } from '../src/cities';
 import { CITY_DATA } from '../src/data/cities';
 
 const land = decodeBinaryMask(LAND_MASK);
@@ -111,6 +119,7 @@ describe('settings', () => {
       routes: [{ id: 1, from: 1, to: 1 }],
       aspect: '16:9' as const,
       zoom: 1.5,
+      roll: 20,
     };
     const next = applyPreset(mine, PRESETS[1]!);
     expect(next.preset).toBe(PRESETS[1]!.id);
@@ -118,13 +127,19 @@ describe('settings', () => {
     expect(next.routes).toEqual(mine.routes);
     expect(next.aspect).toBe('16:9');
     expect(next.zoom).toBe(1.5);
+    expect(next.roll).toBe(20);
   });
 
-  it('reset can keep or drop content', () => {
-    const mine = { ...DEFAULT_SETTINGS, countries: [5], dotSize: 1.2 };
-    expect(resetSettings(mine, true).countries).toEqual([5]);
-    expect(resetSettings(mine, true).dotSize).toBe(DEFAULT_SETTINGS.dotSize);
-    expect(resetSettings(mine, false).markers).toEqual([]);
+  it('"reset style" keeps content and the frame, "reset all" drops both', () => {
+    const mine = { ...DEFAULT_SETTINGS, countries: [5], dotSize: 1.2, aspect: '1:1' as const, roll: 20 };
+    const style = resetSettings(mine, 'style');
+    expect(style.countries).toEqual([5]);
+    expect(style.dotSize).toBe(DEFAULT_SETTINGS.dotSize);
+    expect(style.aspect).toBe('1:1');
+    expect(style.roll).toBe(20);
+    const all = resetSettings(mine, 'all');
+    expect(all.countries).toEqual([]);
+    expect(all.aspect).toBe(DEFAULT_SETTINGS.aspect);
   });
 
   it('knows frame sizes', () => {
@@ -176,7 +191,7 @@ describe('align', () => {
     expect(alignOffset(s, 'top')).toEqual({ offY: 0.2 });
     expect(alignOffset(s, 'bottom')).toEqual({ offY: -0.2 });
     expect(alignOffset(s, 'center')).toEqual({ offX: 0 });
-    expect(alignOffset({ ...s, zoom: 4 }, 'top')).toEqual({ offY: -1.5 }); // clamped like the slider
+    expect(alignOffset({ ...s, zoom: 4 }, 'top')).toEqual({ offY: -MAX_OFFSET }); // clamped like the slider
   });
 });
 
@@ -201,5 +216,10 @@ describe('cities', () => {
     expect(names('франц')).toContain('Сан-Франциско');
     expect(names('кишинев')).toEqual(['Кишинёв']); // ё and е are one letter
     expect(names('нет такого города')).toEqual([]);
+  });
+
+  it('names a hand-placed point after the closest city, if one is near', () => {
+    expect(nearestCity(cities, 55.7, 49.2)?.name).toBe('Казань');
+    expect(nearestCity(cities, 0, -140)).toBeNull(); // the middle of the Pacific
   });
 });

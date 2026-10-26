@@ -1,4 +1,13 @@
-import { FRAME_FORMATS, FX_DEFAULTS, type GlobeSettings, type FxType, type Aspect } from '@tools/globe';
+import {
+  FRAME_FORMATS,
+  FX_DEFAULTS,
+  MAX_OFFSET,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  type GlobeSettings,
+  type FxType,
+  type Aspect,
+} from '@tools/globe';
 import type { Option, Tab } from '@tools/ui';
 import type { ReactNode } from 'react';
 
@@ -58,6 +67,14 @@ const fxIcon = (d: ReactNode) => (
     {d}
   </svg>
 );
+/** "No effect" in the effect menu: a crossed-out circle, so it lines up with the effects' icons. */
+export const FX_OFF_ICON = fxIcon(
+  <>
+    <circle cx="12" cy="12" r="8" />
+    <path d="m6.5 17.5 11-11" />
+  </>,
+);
+
 export const FX_OPTIONS: Option<FxType>[] = [
   {
     value: 'random',
@@ -415,10 +432,20 @@ export function globeTabs(custom: CustomSections): Tab<S>[] {
               label: 'Вращать сам',
               hint: 'Останавливается, когда тянете шар мышью',
             },
-            { type: 'slider', key: 'rotSpeed', label: 'Скорость', min: 0, max: 60, step: 1, unit: '°/с' },
+            {
+              type: 'slider',
+              key: 'rotSpeed',
+              label: 'Скорость',
+              min: 0,
+              max: 60,
+              step: 1,
+              unit: '°/с',
+              visible: s => s.autoRotate,
+            },
             {
               type: 'segmented',
               key: 'rotDir',
+              visible: s => s.autoRotate,
               options: [
                 { value: 1, label: 'С запада на восток' },
                 { value: -1, label: 'С востока на запад' },
@@ -526,9 +553,9 @@ export function globeTabs(custom: CustomSections): Tab<S>[] {
           title: 'Положение',
           resettable: true,
           controls: [
-            { type: 'slider', key: 'zoom', label: 'Масштаб', min: 0.2, max: 4, step: 0.01, ...pct },
-            { type: 'slider', key: 'offX', label: 'Сдвиг по X', min: -1.5, max: 1.5, step: 0.01, ...pct },
-            { type: 'slider', key: 'offY', label: 'Сдвиг по Y', min: -1.5, max: 1.5, step: 0.01, ...pct },
+            { type: 'slider', key: 'zoom', label: 'Масштаб', min: MIN_ZOOM, max: MAX_ZOOM, step: 0.01, ...pct },
+            { type: 'slider', key: 'offX', label: 'Сдвиг по X', min: -MAX_OFFSET, max: MAX_OFFSET, step: 0.01, ...pct },
+            { type: 'slider', key: 'offY', label: 'Сдвиг по Y', min: -MAX_OFFSET, max: MAX_OFFSET, step: 0.01, ...pct },
             { type: 'ruler', key: 'roll', label: 'Наклон оси', min: -90, max: 90, step: 2, major: 10, unit: '°' },
           ],
         },

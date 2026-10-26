@@ -1,0 +1,346 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Экспорт: состояния кнопок</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap">
+<style>
+/* Three variants of in-button feedback for the export popover, side by side. Each column is a live copy of the
+   popover (same tokens and sizes as packages/ui/src/styles.css) plus a frozen strip of every state. Dark, desktop. */
+:root {
+  --bg: #0b0b0c;
+  --surface: #131315;
+  --field: #232327;
+  --field-2: #2e2e33;
+  --popover: #1b1b1f;
+  --popover-field: #26262b;
+  --popover-on: #36363c;
+  --text: #f2f2f3;
+  --muted: #8e8e93;
+  --dim: #5c5c61;
+  --accent: #7c5cff;
+  --ok: #3dd68c;
+  --err: #f2555a;
+  --r-pill: 999px;
+  --shadow-pop: 0 30px 80px -20px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --font: "Geist", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 var(--font); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; cursor: pointer; }
+svg { display: block; flex: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.page { min-width: 1280px; max-width: 1400px; margin: 0 auto; padding: 32px 32px 48px; display: grid; gap: 24px; }
+header { display: flex; align-items: flex-end; gap: 24px; }
+header .intro { flex: 1; }
+header h1 { margin: 0 0 6px; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--muted); max-width: 76ch; }
+.sim { display: grid; gap: 8px; background: var(--surface); border-radius: 18px; padding: 12px 14px; min-width: 330px; }
+.sim .trow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sim small { display: block; color: var(--muted); font-size: 12.5px; }
+
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
+.variant { background: var(--surface); border-radius: 24px; padding: 20px; display: grid; gap: 16px; }
+.variant.rec { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.vh { display: flex; align-items: center; gap: 10px; }
+.vh .letter { width: 30px; height: 30px; border-radius: 10px; background: var(--field); display: grid; place-items: center; font-weight: 600; }
+.vh h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.badge { margin-left: auto; height: 26px; padding: 0 10px; border-radius: 9px; display: inline-flex; align-items: center; font-size: 12.5px; font-weight: 500; color: #cfc4ff; background: rgba(124, 92, 255, 0.18); }
+.lead { margin: -6px 0 0; color: var(--muted); }
+.notes { margin: 0; padding-left: 18px; color: var(--muted); display: grid; gap: 4px; }
+.notes b { color: var(--text); font-weight: 500; }
+.sub { font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: -6px; }
+
+/* ---- popover copy (t-pop and friends) ---- */
+.pop { width: 100%; padding: 16px; background: var(--popover); border-radius: 24px; display: grid; gap: 14px; box-shadow: var(--shadow-pop); }
+.pop h4 { margin: 0; font-size: 15px; font-weight: 600; }
+.pop-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.pop-h .size { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.seg { display: flex; background: var(--popover-field); border-radius: var(--r-pill); padding: 4px; gap: 2px; }
+.seg button { flex: 1; height: 34px; border: 0; background: transparent; border-radius: var(--r-pill); color: var(--muted); font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; white-space: nowrap; min-width: 0; }
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--popover-on); color: var(--text); }
+.seg button:disabled { cursor: default; opacity: 0.55; }
+.seg button:disabled:hover { color: var(--muted); }
+.seg.sm button { height: 30px; font-size: 13px; padding: 0 4px; }
+.seg.tall { border-radius: 18px; }
+.seg.tall button { height: 46px; border-radius: 14px; display: grid; align-content: center; gap: 1px; line-height: 1.15; }
+.seg small { font-size: 11.5px; color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }
+.seg button[aria-pressed="true"] small { color: var(--muted); }
+.soon { font-size: 10.5px; color: var(--muted); background: var(--field-2); border-radius: 6px; padding: 1px 5px; }
+.stack { display: grid; gap: 8px; }
+.lbl { color: var(--muted); }
+.lbl small { display: block; color: var(--dim); font-size: 12px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.trow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.trow small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+.tgl { width: 46px; height: 28px; border: 0; border-radius: var(--r-pill); background: var(--field-2); position: relative; padding: 0; transition: background-color 0.2s; flex: none; }
+.tgl::after { content: ""; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.tgl[aria-checked="true"] { background: var(--accent); }
+.tgl[aria-checked="true"]::after { transform: translateX(18px); }
+
+/* actions: same grid as .t-actions, so a label change never moves the buttons */
+.actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+.pill { height: 44px; border-radius: var(--r-pill); background: var(--field); border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; font-weight: 500; white-space: nowrap; position: relative; overflow: hidden; transition: background-color 0.2s, color 0.2s; }
+.pill:hover { background: var(--field-2); }
+.pill.primary { background: var(--accent); color: #fff; }
+.pill.primary:hover { filter: brightness(1.08); }
+.pill[aria-disabled="true"] { cursor: progress; }
+.pill.primary[aria-disabled="true"]:hover { filter: none; }
+.pill > * { position: relative; }
+
+/* error chip: as wide as its text, never wider than the card */
+.chip { justify-self: start; max-width: 100%; display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 5px 10px; border-radius: 10px; font-size: 13px; font-weight: 500; line-height: 1.3; color: var(--err); background: rgba(242, 85, 90, 0.12); }
+
+/* spinner keeps turning on the compositor even while the render blocks the page */
+.spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.pop-in { animation: pop 0.25s ease-out; }
+@keyframes pop { from { transform: scale(0.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } .pop-in { animation: none; } }
+
+/* B: progress fill behind the label */
+.pill .bar { position: absolute; inset: 0 auto 0 0; width: 0; background: rgba(255, 255, 255, 0.22); }
+.pill.primary[data-state="busy"] { background: #5f45d6; }
+/* C: success tint on the button itself */
+.pill[data-tone="ok"] { background: rgba(61, 214, 140, 0.16); color: var(--ok); }
+.pill.primary[data-tone="ok"] { background: #2fb877; color: #06210f; }
+
+/* frozen strip */
+.strip { display: grid; gap: 10px; background: var(--popover); border-radius: 18px; padding: 14px; }
+/* labels sit above the buttons, so the buttons keep the popover's width and nothing is cut */
+.strip .st { display: grid; gap: 6px; }
+.strip .st > span { color: var(--muted); font-size: 12.5px; }
+.strip .pill { pointer-events: none; }
+</style>
+
+<div class="page">
+  <header>
+    <div class="intro">
+      <h1>Экспорт: что показывать в кнопках</h1>
+      <p>Статус переехал в кнопки: «Готовлю» и «Сохранено/Скопировано» больше не отдельные чипы. Под кнопками остаётся только красный чип ошибки — по ширине текста. Жми «Скачать» и «Копировать» в каждом варианте; качество 4× готовится дольше, как в жизни.</p>
+    </div>
+    <div class="sim">
+      <div class="trow">
+        <span>Имитировать ошибки<small>Скачать: память → видеокарта по очереди. Копировать: буфер.</small></span>
+        <button class="tgl" id="fail" role="switch" aria-checked="false" aria-label="Имитировать ошибки"></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="cols" id="cols"></div>
+</div>
+
+<script>
+const ICON = {
+  download: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>',
+  copy: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+  check: '<svg class="pop-in" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  spin: '<svg class="spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9" /></svg>',
+};
+
+const ERRORS = {
+  memory: 'Не хватило памяти. Выберите качество поменьше',
+  gpu: 'Точки крупнее, чем умеет видеокарта: выберите качество поменьше',
+  clipboard: 'Браузер не дал доступ к буферу. Скачайте файл',
+};
+
+// How each variant draws the two buttons for a state. dl: idle | busy | done; cp: idle | busy | done.
+const VARIANTS = [
+  {
+    id: 'A',
+    title: 'Слова в кнопке',
+    rec: true,
+    lead: 'Кнопка говорит, что происходит: «Готовлю…» со спиннером, потом «Сохранено» с галочкой.',
+    notes: [
+      '<b>Понятнее всего:</b> состояние читается словами, не надо угадывать по иконке',
+      'Кнопки не прыгают: ширина задана сеткой, текст короче кнопки',
+      'Галочка держится 1,6 с, потом кнопка возвращается',
+    ],
+    dl: (s, px) => s === 'busy' ? `${ICON.spin}<span>Готовлю…</span>` : s === 'done' ? `${ICON.check}<span>Сохранено</span>` : `<span>Скачать</span>`,
+    cp: s => s === 'busy' ? `${ICON.spin}<span>Копирую…</span>` : s === 'done' ? `${ICON.check}<span>Скопировано</span>` : `<span>Копировать</span>`,
+  },
+  {
+    id: 'B',
+    title: 'Полоса в кнопке',
+    lead: 'Пока картинка готовится, кнопка заполняется слева направо, внутри — размер. Потом «Сохранено».',
+    notes: [
+      '<b>Видно, что дело идёт,</b> особенно на 4× — там пара секунд',
+      'Полоса примерная: браузер не сообщает настоящий прогресс отрисовки',
+      'Размер в кнопке дублирует размер в шапке',
+    ],
+    dl: (s, px) => s === 'busy' ? `<i class="bar"></i><span>Готовлю ${px} px</span>` : s === 'done' ? `${ICON.check}<span>Сохранено</span>` : `<span>Скачать</span>`,
+    cp: s => s === 'busy' ? `<i class="bar"></i><span>Копирую…</span>` : s === 'done' ? `${ICON.check}<span>Скопировано</span>` : `<span>Копировать</span>`,
+    bar: true,
+  },
+  {
+    id: 'C',
+    title: 'Иконка и цвет',
+    lead: 'Подпись не меняется. Меняется иконка слева (стрелка → спиннер → галочка), а при успехе кнопка на миг зеленеет.',
+    notes: [
+      '<b>Самый тихий:</b> ничего не перечитывать, текст на месте',
+      'Зелёная вспышка заметна боковым зрением',
+      'Без подписи «скопировано» смысл держится только на цвете и галочке',
+    ],
+    dl: s => `${s === 'busy' ? ICON.spin : s === 'done' ? ICON.check : ICON.download}<span>Скачать</span>`,
+    cp: s => `${s === 'busy' ? ICON.spin : s === 'done' ? ICON.check : ICON.copy}<span>Копировать</span>`,
+    tone: true,
+  },
+];
+
+const SCALES = [1, 2, 3, 4];
+const LONG = 1920; // 16:9 frame, long side
+let failMode = false;
+let dlFailTurn = 0;
+
+const fail = document.getElementById('fail');
+fail.addEventListener('click', () => {
+  failMode = !failMode;
+  fail.setAttribute('aria-checked', String(failMode));
+});
+
+function popoverHtml(v) {
+  return `
+    <div class="pop" data-variant="${v.id}">
+      <div class="pop-h"><h4>Экспорт</h4><span class="size" data-size></span></div>
+      <div class="seg" role="group" aria-label="Что экспортировать">
+        <button aria-pressed="true">Картинка</button><button>Код</button><button disabled>Видео <span class="soon">скоро</span></button>
+      </div>
+      <div class="row">
+        <span class="lbl">Формат файла</span>
+        <div class="seg sm" style="width:150px" data-fmt><button aria-pressed="true">PNG</button><button>JPG</button></div>
+      </div>
+      <div class="stack">
+        <span class="lbl">Качество<small>во сколько раз крупнее кадра</small></span>
+        <div class="seg tall" data-scale>${SCALES.map(k => `<button data-k="${k}" aria-pressed="${k === 2}">${k}×<small>${LONG * k}</small></button>`).join('')}</div>
+      </div>
+      <div class="trow">
+        <span>Прозрачный фон<small>Без фона, виньетки и зерна</small></span>
+        <button class="tgl" role="switch" aria-checked="false" aria-label="Прозрачный фон" data-tgl></button>
+      </div>
+      <div class="actions">
+        <button class="pill" data-cp></button>
+        <button class="pill primary" data-dl></button>
+      </div>
+      <div data-chip hidden></div>
+    </div>`;
+}
+
+function stripHtml(v) {
+  const px = LONG * 2;
+  const row = (label, dl, cp) => `
+    <div class="st"><span>${label}</span>
+      <div class="actions">
+        <button class="pill" tabindex="-1" ${v.tone && cp === 'done' ? 'data-tone="ok"' : ''} ${cp === 'busy' && v.bar ? 'data-state="busy"' : ''}>${v.cp(cp)}</button>
+        <button class="pill primary" tabindex="-1" ${v.tone && dl === 'done' ? 'data-tone="ok"' : ''} ${dl === 'busy' ? 'data-state="busy" aria-disabled="true"' : ''}>${v.dl(dl, px)}</button>
+      </div>
+    </div>`;
+  return `<div class="strip">${row('Обычное', 'idle', 'idle')}${row('Готовится', 'busy', 'idle')}${row('Готово', 'done', 'done')}</div>`;
+}
+
+const cols = document.getElementById('cols');
+for (const v of VARIANTS) {
+  const el = document.createElement('section');
+  el.className = 'variant' + (v.rec ? ' rec' : '');
+  el.innerHTML = `
+    <div class="vh"><span class="letter">${v.id}</span><h2>${v.title}</h2>${v.rec ? '<span class="badge">Рекомендую</span>' : ''}</div>
+    <p class="lead">${v.lead}</p>
+    ${popoverHtml(v)}
+    <div class="sub">Все состояния</div>
+    ${stripHtml(v)}
+    <ul class="notes">${v.notes.map(n => `<li>${n}</li>`).join('')}</ul>`;
+  cols.append(el);
+  // freeze the strip's progress bars half-way so the busy state is visible
+  el.querySelectorAll('.strip .bar').forEach(b => (b.style.width = '55%'));
+  wire(el.querySelector('.pop'), v);
+}
+
+function wire(pop, v) {
+  let scale = 2;
+  const state = { dl: 'idle', cp: 'idle' };
+  const dlBtn = pop.querySelector('[data-dl]');
+  const cpBtn = pop.querySelector('[data-cp]');
+  const chip = pop.querySelector('[data-chip]');
+  const size = pop.querySelector('[data-size]');
+  const timers = { dl: 0, cp: 0 };
+
+  const draw = () => {
+    const px = LONG * scale;
+    size.textContent = `${px} × ${Math.round((px * 9) / 16)} px`;
+    for (const [key, btn, fn] of [['dl', dlBtn, v.dl], ['cp', cpBtn, v.cp]]) {
+      const s = state[key];
+      btn.innerHTML = fn(s, px);
+      btn.toggleAttribute('data-state', s === 'busy');
+      if (s === 'busy') btn.dataset.state = 'busy';
+      btn.setAttribute('aria-disabled', String(s === 'busy'));
+      if (v.tone && s === 'done') btn.dataset.tone = 'ok';
+      else delete btn.dataset.tone;
+    }
+  };
+  const showError = text => {
+    chip.hidden = !text;
+    chip.className = text ? 'chip' : '';
+    chip.textContent = text || '';
+  };
+
+  // the bar eases toward 90% over the expected time and jumps to full when the file is ready
+  const runBar = (btn, ms) => {
+    const bar = btn.querySelector('.bar');
+    if (!bar) return;
+    bar.animate([{ width: '0%' }, { width: '90%' }], { duration: ms, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'forwards' });
+  };
+  const finishBar = btn => {
+    const bar = btn.querySelector('.bar');
+    if (bar) bar.animate([{ width: getComputedStyle(bar).width }, { width: '100%' }], { duration: 150, fill: 'forwards' });
+  };
+
+  const act = (key, btn, ms, error) => {
+    if (state[key] === 'busy') return;
+    clearTimeout(timers[key]);
+    showError(null);
+    state[key] = 'busy';
+    draw();
+    runBar(btn, ms);
+    timers[key] = setTimeout(() => {
+      finishBar(btn);
+      setTimeout(() => {
+        if (error) {
+          state[key] = 'idle';
+          showError(error);
+        } else {
+          state[key] = 'done';
+          timers[key] = setTimeout(() => {
+            state[key] = 'idle';
+            draw();
+          }, 1600);
+        }
+        draw();
+      }, v.bar ? 160 : 0);
+    }, ms);
+  };
+
+  dlBtn.addEventListener('click', () => {
+    const error = failMode ? (dlFailTurn++ % 2 ? ERRORS.gpu : ERRORS.memory) : null;
+    act('dl', dlBtn, 450 * scale, error);
+  });
+  cpBtn.addEventListener('click', () => act('cp', cpBtn, 300 + 120 * scale, failMode ? ERRORS.clipboard : null));
+
+  pop.querySelectorAll('[data-scale] button').forEach(b =>
+    b.addEventListener('click', () => {
+      scale = Number(b.dataset.k);
+      pop.querySelectorAll('[data-scale] button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      draw();
+    }),
+  );
+  pop.querySelectorAll('[data-fmt] button').forEach(b =>
+    b.addEventListener('click', () => pop.querySelectorAll('[data-fmt] button').forEach(x => x.setAttribute('aria-pressed', String(x === b)))),
+  );
+  const tgl = pop.querySelector('[data-tgl]');
+  tgl.addEventListener('click', () => tgl.setAttribute('aria-checked', String(tgl.getAttribute('aria-checked') !== 'true')));
+
+  draw();
+}
+</script>

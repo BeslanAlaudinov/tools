@@ -6,14 +6,17 @@ import {
   GlobeEngine,
   PRESETS,
   applyPreset,
+  countryAt,
+  countryName,
   loadCities,
+  nearestCity,
   searchCities,
   type City,
   type GlobeSettings,
   type Marker,
   type Preset,
 } from '@tools/globe';
-import { ConfirmPopover, Dropdown, IconButton, Icons, NumberField, Pill, Segmented, Toggle } from '@tools/ui';
+import { ConfirmPopover, Dropdown, IconButton, Icons, NumberField, Pill, Segmented } from '@tools/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { formatLatLon, useGlobeTool } from './context';
 import { useGlobeStore } from './store';
@@ -173,7 +176,8 @@ export function CountriesSection() {
 
 // ---------- markers ----------
 
-type AddMode = 'city' | 'coords' | 'center';
+// 'globe': the user clicks the spot on the globe itself and confirms it
+type AddMode = 'city' | 'coords' | 'globe';
 
 export function MarkersSection() {
   const settings = useSettings();
@@ -186,12 +190,14 @@ export function MarkersSection() {
   const [label, setLabel] = useState('');
   const [lat, setLat] = useState('');
   const [lon, setLon] = useState('');
+  const [point, setPoint] = useState<{ lat: number; lon: number } | null>(null);
 
   // the full city list is a separate download, fetched the first time the city search opens
   const [allCities, setAllCities] = useState<readonly City[] | 'loading' | 'failed'>('loading');
-  const searching = adding && mode === 'city';
+  // the city list also names a point picked on the globe
+  const needCities = adding && (mode === 'city' || mode === 'globe');
   useEffect(() => {
-    if (!searching || Array.isArray(allCities)) return;
+    if (!needCities || Array.isArray(allCities)) return;
     let alive = true;
     setAllCities('loading');
     loadCities().then(
@@ -202,12 +208,41 @@ export function MarkersSection() {
       alive = false;
     };
     // runs when the search opens; a failed load is retried on the next opening
-  }, [searching]);
+  }, [needCities]);
   const cities = useMemo(
     () => (Array.isArray(allCities) ? searchCities(allCities, cityQuery) : []),
     [allCities, cityQuery],
   );
-  const center = engine.current?.center() ?? [0, 0];
+
+  // picking on the globe: clicks on it set the point, the draft marker shows where it will land
+  const placing = adding && mode === 'globe';
+  const suggested = useMemo(() => {
+    if (!point) return '';
+    const city = Array.isArray(allCities) ? nearestCity(allCities, point.lat, point.lon) : null;
+    return city?.name ?? countryName(countryAt(point.lat, point.lon));
+  }, [point, allCities]);
+  const fallbackLabel = `Метка ${settings.markers.length + 1}`;
+  const pointLabel = label.trim() || suggested || fallbackLabel;
+  useEffect(() => {
+    const e = engine.current;
+    if (!placing || !e) return;
+    e.setPicker((la, lo) => setPoint({ lat: +la.toFixed(2), lon: +lo.toFixed(2) }));
+    const onKey = (ev: KeyboardEvent) => ev.key === 'Escape' && setAdding(false);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      e.setPicker(null);
+      e.setDraftMarker(null);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [placing, engine]);
+  useEffect(() => {
+    if (placing) engine.current?.setDraftMarker(point && { label: pointLabel, ...point });
+  }, [placing, point, pointLabel, engine]);
+  const startPlacing = () => {
+    setMode('globe');
+    setPoint(null);
+    setLabel('');
+  };
 
   const add = (m: Omit<Marker, 'id'>) => {
     set({ markers: [...settings.markers, { id: nextId(settings.markers), ...m }] });
@@ -216,6 +251,7 @@ export function MarkersSection() {
     setLabel('');
     setLat('');
     setLon('');
+    setPoint(null);
   };
   const confirm = () => {
     if (mode === 'city') {
@@ -228,14 +264,9 @@ export function MarkersSection() {
         notify({ text: 'Широта от −90 до 90, долгота от −180 до 180' });
         return;
       }
-      add({ label: label.trim() || `Метка ${settings.markers.length + 1}`, lat: a, lon: o });
-    } else {
-      const [cLat, cLon] = engine.current?.center() ?? [0, 0];
-      add({
-        label: label.trim() || `Метка ${settings.markers.length + 1}`,
-        lat: +cLat.toFixed(2),
-        lon: +cLon.toFixed(2),
-      });
+      add({ label: label.trim() || fallbackLabel, lat: a, lon: o });
+    } else if (point) {
+      add({ label: pointLabel, ...point });
     }
   };
   const rename = (id: number, value: string) =>
@@ -296,9 +327,12 @@ export function MarkersSection() {
             options={[
               { value: 'city', label: 'Город' },
               { value: 'coords', label: 'Координаты' },
-              { value: 'center', label: 'Центр кадра' },
             ]}
           />
+          <button type="button" className="t-pickbtn" aria-pressed={mode === 'globe'} onClick={startPlacing}>
+            <Icons.Cursor size={16} />
+            Выбрать на шаре
+          </button>
           {mode === 'city' && (
             <div className="t-stack">
               <label className="t-search">
@@ -375,24 +409,30 @@ export function MarkersSection() {
               </div>
             </div>
           )}
-          {mode === 'center' && (
-            <div className="t-stack">
-              <label className="t-field">
-                <input
-                  placeholder={`Метка ${settings.markers.length + 1}`}
-                  aria-label="Подпись"
-                  value={label}
-                  onChange={e => setLabel(e.target.value)}
-                />
-              </label>
-              <p className="t-note">Поставится в точку под центром кадра: {formatLatLon(center[0], center[1])}.</p>
-            </div>
-          )}
+          {mode === 'globe' &&
+            (point ? (
+              <div className="t-stack">
+                <label className="t-field">
+                  <input
+                    placeholder={suggested || fallbackLabel}
+                    aria-label="Подпись"
+                    value={label}
+                    onChange={e => setLabel(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && confirm()}
+                  />
+                </label>
+                <p className="t-note">
+                  {formatLatLon(point.lat, point.lon)} · кликните по шару ещё раз, чтобы передвинуть
+                </p>
+              </div>
+            ) : (
+              <p className="t-note">Кликните по шару, куда поставить метку. Пока выбираете, шар не крутится сам.</p>
+            ))}
           <div className="t-sheet-actions">
             <Pill size="sm" onClick={() => setAdding(false)}>
               Отмена
             </Pill>
-            <Pill size="sm" variant="primary" onClick={confirm}>
+            <Pill size="sm" variant="primary" onClick={confirm} disabled={mode === 'globe' && !point}>
               Добавить
             </Pill>
           </div>
@@ -522,16 +562,23 @@ export function CustomFrameSection() {
   const set = useSet();
   const [lock, setLock] = useState(false);
   const ratio = settings.customW / settings.customH;
-  const setW = (w: number) => set(lock ? { customW: w, customH: Math.round(w / ratio) } : { customW: w });
-  const setH = (h: number) => set(lock ? { customH: h, customW: Math.round(h * ratio) } : { customH: h });
+  // with the ratio locked, the other side follows, but never outside the sizes a frame can have
+  const side = (v: number) => Math.min(8192, Math.max(64, Math.round(v)));
+  const setW = (w: number) => set(lock ? { customW: w, customH: side(w / ratio) } : { customW: w });
+  const setH = (h: number) => set(lock ? { customH: h, customW: side(h * ratio) } : { customH: h });
   return (
     <div className="t-custom-frame">
       <NumberField label="Ширина кадра" value={settings.customW} min={64} max={8192} unit="px" onChange={setW} />
       <span className="t-lbl">×</span>
       <NumberField label="Высота кадра" value={settings.customH} min={64} max={8192} unit="px" onChange={setH} />
-      <span title="Сохранять пропорции">
-        <Toggle label="Сохранять пропорции" checked={lock} onChange={setLock} />
-      </span>
+      <IconButton
+        size="sm"
+        label={lock ? 'Пропорции сохраняются' : 'Сохранять пропорции'}
+        aria-pressed={lock}
+        onClick={() => setLock(l => !l)}
+      >
+        <Icons.Link size={16} />
+      </IconButton>
     </div>
   );
 }

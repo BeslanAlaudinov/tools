@@ -58,17 +58,19 @@ export function SchemaSections<S extends object>({
               </>
             }
           >
-            {sec.controls
-              .filter(c => !c.visible || c.visible(value))
-              .map((c, i) => (
-                <ControlView
-                  key={'key' in c ? String(c.key) : `${c.type}-${i}`}
-                  control={c}
-                  value={value}
-                  onChange={onChange}
-                  palette={palette}
-                />
-              ))}
+            {/* a section switched off in its header shows only the header: its settings do nothing now */}
+            {(!sec.toggleKey || Boolean(value[sec.toggleKey])) &&
+              sec.controls
+                .filter(c => !c.visible || c.visible(value))
+                .map((c, i) => (
+                  <ControlView
+                    key={'key' in c ? String(c.key) : `${c.type}-${i}`}
+                    control={c}
+                    value={value}
+                    onChange={onChange}
+                    palette={palette}
+                  />
+                ))}
           </Card>
         ))}
     </>

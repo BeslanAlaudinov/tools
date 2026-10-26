@@ -271,19 +271,19 @@ export function Stage({
   return (
     <section className="t-stage" aria-label="Холст">
       {children}
-      {left && (
-        <div className="t-stage-corner" data-side="left">
-          {left}
-        </div>
-      )}
-      {center && (
-        <div className="t-stage-corner" data-side="center">
-          {center}
-        </div>
-      )}
-      {right && (
-        <div className="t-stage-corner" data-side="right" aria-label="Управление">
-          {right}
+      {(left || center || right) && (
+        // one row over the canvas: the middle stays centered, and when the sides run out of room
+        // the hints wrap to a second line instead of sliding under the middle
+        <div className="t-stage-top">
+          <div className="t-stage-slot" data-side="left">
+            {left}
+          </div>
+          <div className="t-stage-slot" data-side="center">
+            {center}
+          </div>
+          <div className="t-stage-slot" data-side="right" aria-label="Управление">
+            {right}
+          </div>
         </div>
       )}
       {toast}
@@ -354,12 +354,16 @@ export function Toast({
   action?: string;
   onAction?: () => void;
 }) {
+  // while it fades out the toast keeps showing what it said, instead of shrinking to an empty pill
+  const [last, setLast] = useState({ text, action });
+  if (open && (last.text !== text || last.action !== action)) setLast({ text, action });
+  const shown = open ? { text, action } : last;
   return (
-    <div className="t-toast" role="status" aria-live="polite" data-open={open || undefined}>
-      <span>{text}</span>
-      {action && (
-        <Pill size="sm" onClick={onAction}>
-          {action}
+    <div className="t-toast" role="status" aria-live="polite" data-open={open || undefined} aria-hidden={!open}>
+      <span>{shown.text}</span>
+      {shown.action && (
+        <Pill size="sm" onClick={onAction} tabIndex={open ? undefined : -1}>
+          {shown.action}
         </Pill>
       )}
     </div>

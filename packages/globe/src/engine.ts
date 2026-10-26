@@ -21,7 +21,16 @@ import {
   type Vec3,
 } from './geo';
 import { drawMarkers, drawRoutes, type MarkerHit } from './overlay';
-import { GEOMETRY_KEYS, DEFAULT_VIEW, type GlobeSettings, type GlobeView } from './settings';
+import {
+  GEOMETRY_KEYS,
+  DEFAULT_VIEW,
+  MAX_OFFSET,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  type GlobeSettings,
+  type GlobeView,
+  type Marker,
+} from './settings';
 import { POINTS_FS, POINTS_VS, QUAD_FS, QUAD_VS } from './shaders';
 
 let landGrid: Grid | null = null;
@@ -129,6 +138,10 @@ export class GlobeEngine {
   private raf = 0;
   private last = 0;
   private markerHits: MarkerHit[] = [];
+  /** While set, a click on the globe reports its point here instead of hitting markers or countries. */
+  private picker: ((lat: number, lon: number) => void) | null = null;
+  /** A marker being placed: shown on screen only, never in exports. */
+  private draft: Marker | null = null;
   private readonly waves = [0, 1, 2].map(i => ({ o: [0, 0, 1] as Vec3, ph: i / 3, live: false }));
   private readonly waveRand = mulberry32(99);
   private tween: { t0: number; y0: number; y1: number; p0: number; p1: number } | null = null;
@@ -221,6 +234,21 @@ export class GlobeEngine {
   }
 
   /** Point of the globe in the middle of the view, degrees. */
+  /**
+   * Point-picking mode: while a handler is set, a click on the globe calls it with [lat, lon] in degrees
+   * (dragging still turns the globe). Pass null to leave the mode.
+   */
+  setPicker(onPick: ((lat: number, lon: number) => void) | null): void {
+    this.picker = onPick;
+    this.canvas.toggleAttribute('data-picking', !!onPick);
+  }
+
+  /** Shows a marker that is not part of the settings yet (the one being placed); null hides it. */
+  setDraftMarker(marker: Omit<Marker, 'id'> | null): void {
+    this.draft = marker && { id: 0, ...marker };
+    this.dirty = true;
+  }
+
   center(): [number, number] {
     return centerLatLon(this.matrix());
   }
@@ -394,6 +422,7 @@ export class GlobeEngine {
         (s.fxOn && s.fxAmount > 0) ||
         (s.colorMode === 'flow' && s.flowSpeed > 0) ||
         (s.markers.length > 0 && s.markerPulse) ||
+        this.draft !== null ||
         (s.routes.length > 0 && s.arcSpeed > 0))
     );
   }
@@ -423,7 +452,8 @@ export class GlobeEngine {
         this.callbacks.onViewChange?.(this.getView());
       }
       this.dirty = true;
-    } else if (this.playing && s.autoRotate && !this.drag) {
+    } else if (this.playing && s.autoRotate && !this.drag && !this.picker) {
+      // no auto-rotation while a point is being picked: the spot must stay under the cursor
       this.view.yaw += s.rotSpeed * s.rotDir * dt;
     }
     if (this.playing) {
@@ -437,7 +467,7 @@ export class GlobeEngine {
       this.drawGlobe(this.canvas.width, this.canvas.height);
       if (this.overlayCtx && this.overlay) {
         this.overlayCtx.clearRect(0, 0, this.overlay.width, this.overlay.height);
-        this.markerHits = this.drawOverlay(this.overlayCtx, this.overlay.width, this.overlay.height, this.canvas);
+        this.markerHits = this.drawOverlay(this.overlayCtx, this.overlay.width, this.overlay.height, this.canvas, true);
       }
       this.dirty = false;
     }
@@ -615,10 +645,29 @@ export class GlobeEngine {
     return pointPx * glowScale;
   }
 
-  private drawOverlay(g: CanvasRenderingContext2D, w: number, h: number, source: CanvasImageSource): MarkerHit[] {
+  private drawOverlay(
+    g: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    source: CanvasImageSource,
+    live = false,
+  ): MarkerHit[] {
     const m = this.matrix();
     drawRoutes(g, this.settings, m, w, h, this.time);
-    return drawMarkers(g, this.settings, m, w, h, this.time, source, this.fontFamily);
+    const hits = drawMarkers(g, this.settings, m, w, h, this.time, source, this.fontFamily);
+    // the draft pulses so it reads as "not placed yet"; it is not clickable
+    if (live && this.draft)
+      drawMarkers(
+        g,
+        { ...this.settings, markers: [this.draft], markerPulse: true },
+        m,
+        w,
+        h,
+        this.time,
+        source,
+        this.fontFamily,
+      );
+    return hits;
   }
 
   // ---------- interaction ----------
@@ -657,8 +706,8 @@ export class GlobeEngine {
       if (d.pan) {
         const s = this.settings;
         this.callbacks.onPatch?.({
-          offX: clamp(s.offX + (dx / this.cssW) * 2, -1.5, 1.5),
-          offY: clamp(s.offY - (dy / this.cssH) * 2, -1.5, 1.5),
+          offX: clamp(s.offX + (dx / this.cssW) * 2, -MAX_OFFSET, MAX_OFFSET),
+          offY: clamp(s.offY - (dy / this.cssH) * 2, -MAX_OFFSET, MAX_OFFSET),
         });
       } else {
         const k = 1 / ((this.settings.zoom * this.cssH) / 2) / DEG;
@@ -687,7 +736,9 @@ export class GlobeEngine {
       'wheel',
       e => {
         e.preventDefault();
-        this.callbacks.onPatch?.({ zoom: clamp(this.settings.zoom * Math.exp(-e.deltaY * 0.0012), 0.2, 4) });
+        this.callbacks.onPatch?.({
+          zoom: clamp(this.settings.zoom * Math.exp(-e.deltaY * 0.0012), MIN_ZOOM, MAX_ZOOM),
+        });
       },
       { passive: false },
     );
@@ -698,6 +749,12 @@ export class GlobeEngine {
     const scale = this.canvas.width / rect.width;
     const px = (e.clientX - rect.left) * scale;
     const py = (e.clientY - rect.top) * scale;
+    if (this.picker) {
+      const ll = this.pick(px, py);
+      if (ll) this.picker(ll[0], ll[1]);
+      else this.callbacks.onNotice?.('Мимо шара: кликните по нему');
+      return;
+    }
     const hit = [...this.markerHits]
       .reverse()
       .find(

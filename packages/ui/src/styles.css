@@ -112,22 +112,30 @@ svg {
   place-items: center;
   min-height: 0;
 }
-.t-stage-corner {
+.t-stage-top {
   position: absolute;
   top: 16px;
-  display: flex;
-  gap: 6px;
-  z-index: 2;
-}
-.t-stage-corner[data-side='left'] {
   left: 16px;
-}
-.t-stage-corner[data-side='center'] {
-  left: 50%;
-  transform: translateX(-50%);
-}
-.t-stage-corner[data-side='right'] {
   right: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  z-index: 2;
+  /* empty parts of the row let drags through to the canvas */
+  pointer-events: none;
+}
+.t-stage-slot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.t-stage-slot > * {
+  pointer-events: auto;
+}
+.t-stage-slot[data-side='right'] {
+  justify-content: flex-end;
 }
 .t-inspector {
   background: var(--t-surface);
@@ -213,6 +221,12 @@ svg {
 .t-pill[data-variant='back']:hover {
   background: var(--t-field);
   color: var(--t-text);
+}
+.t-pill[aria-busy='true'] {
+  cursor: progress;
+}
+.t-pill[data-variant='primary'][aria-busy='true'] {
+  filter: brightness(0.85);
 }
 .t-pill[data-size='sm'] {
   height: 34px;
@@ -330,16 +344,29 @@ svg {
   color: var(--t-err);
   background: rgba(242, 85, 90, 0.12);
 }
+/* a status chip under actions is as wide as its text; an error may be long, so it wraps inside the card */
+.t-stack > .t-chip {
+  justify-self: start;
+  max-width: 100%;
+}
+.t-chip[data-tone='err'] {
+  white-space: normal;
+  height: auto;
+  min-height: 28px;
+  padding: 5px 10px;
+  line-height: 1.3;
+}
 .t-hint {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   height: 30px;
-  padding: 0 11px 0 8px;
+  padding: 0 10px 0 7px;
   border-radius: var(--t-r-pill);
   background: rgba(255, 255, 255, 0.05);
   color: var(--t-muted);
-  font-size: 12.5px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .t-hint svg {
   color: var(--t-text);
@@ -583,6 +610,10 @@ svg {
   border-radius: 50%;
   background: #fff;
   transition: transform 0.2s;
+}
+.t-tgl:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .t-tgl[aria-checked='true'] {
   background: var(--t-accent);
@@ -1261,6 +1292,12 @@ svg {
   gap: 6px;
   align-items: center;
 }
+/* two names share a narrow row: a size smaller and tighter padding keep ordinary place names whole */
+.t-route .t-dd {
+  font-size: 13px;
+  padding: 0 8px 0 10px;
+  gap: 4px;
+}
 .t-route-build {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr);
@@ -1290,6 +1327,10 @@ svg {
   gap: 8px;
   align-items: center;
 }
+.t-custom-frame .t-ibtn[aria-pressed='true'] {
+  background: var(--t-field-2);
+  color: var(--t-text);
+}
 .t-custom-frame .t-val {
   justify-content: space-between;
   padding: 0 10px;
@@ -1315,11 +1356,34 @@ svg {
   color: var(--t-text);
   border-color: var(--t-fill);
 }
+/* "pick on the globe": a third way to add a marker, selected like a segment (grey fill) */
+.t-pickbtn {
+  height: 34px;
+  border: 0;
+  border-radius: var(--t-r-pill);
+  background: var(--t-card);
+  color: var(--t-muted);
+  font-weight: 500;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.t-pickbtn:hover {
+  color: var(--t-text);
+}
+.t-pickbtn[aria-pressed='true'] {
+  background: var(--t-field-2);
+  color: var(--t-text);
+}
 .t-sheet {
   background: var(--t-field);
   border-radius: 16px;
   padding: 12px;
   display: grid;
+  /* never wider than the card, whatever the fields inside want */
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 .t-sheet .t-seg {
@@ -1343,7 +1407,9 @@ svg {
   box-shadow: inset 0 0 0 1.5px var(--t-accent);
 }
 .t-field input {
+  /* an input is ~20 characters wide by default; a zero basis lets it take only the room the row gives it */
   flex: 1;
+  width: 0;
   min-width: 0;
   border: 0;
   background: transparent;
@@ -1359,7 +1425,7 @@ svg {
 }
 .t-two {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 .t-sheet-actions {
@@ -1433,6 +1499,22 @@ svg {
 .t-frame canvas[data-interactive]:active {
   cursor: grabbing;
 }
+/* no background: a checkerboard, as in image editors, shows what is transparent */
+.t-frame[data-transparent] {
+  background: repeating-conic-gradient(#1f1f23 0 25%, #17171a 0 50%) 0 0 / 16px 16px;
+}
+/* preview shows the frame as exported: square corners, outline outside the image */
+.t-frame[data-exact] {
+  border-radius: 0;
+  box-shadow: 0 0 0 1px var(--t-frame-line);
+}
+.t-frame[data-exact]::after {
+  content: none;
+}
+/* placing a marker: the click picks a point */
+.t-frame canvas[data-interactive][data-picking] {
+  cursor: crosshair;
+}
 .t-frame canvas[data-overlay] {
   pointer-events: none;
 }
@@ -1443,7 +1525,32 @@ svg {
   padding: 24px;
 }
 
+/* spinner turns on the compositor, so it keeps moving while a heavy render blocks the page */
+.t-spin {
+  animation: t-spin 0.8s linear infinite;
+}
+@keyframes t-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.t-pop-in {
+  animation: t-pop-in 0.25s ease-out;
+}
+@keyframes t-pop-in {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .t-spin {
+    animation-duration: 2.4s;
+  }
+  .t-pop-in {
+    animation: none;
+  }
   .t-tgl,
   .t-tgl::after,
   .t-pill,

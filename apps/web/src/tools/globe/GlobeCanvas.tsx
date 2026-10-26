@@ -39,6 +39,7 @@ export function GlobeCanvas({
   const [failed, setFailed] = useState<string | null>(null);
   const [boxSize, setBoxSize] = useState({ w: 0, h: 0 });
   const frame = useGlobeStore(useShallow(s => frameSize(s.settings)));
+  const transparent = useGlobeStore(s => s.settings.bgMode === 'transparent');
   const cb = useRef(callbacks);
   cb.current = callbacks;
 
@@ -103,7 +104,7 @@ export function GlobeCanvas({
       {failed ? (
         <p className="t-fail">{failed}</p>
       ) : (
-        <div className="t-frame" style={{ width: fit.w, height: fit.h }}>
+        <div className="t-frame" data-transparent={transparent || undefined} style={{ width: fit.w, height: fit.h }}>
           <canvas ref={canvas} data-interactive="" aria-label="Глобус. Тяните, чтобы вращать" />
           <canvas ref={overlay} data-overlay="" aria-hidden="true" />
         </div>

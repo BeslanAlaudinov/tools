@@ -1,7 +1,7 @@
 'use client';
 
 import { COUNTRY_CODES, DEFAULT_SETTINGS, frameSize, type GlobeSettings } from '@tools/globe';
-import { Chip, Pill, Segmented, ToggleRow } from '@tools/ui';
+import { Chip, Segmented, StatusPill, ToggleRow, useActionFeedback } from '@tools/ui';
 import { useState } from 'react';
 import { useGlobeTool } from './context';
 import { useGlobeStore } from './store';
@@ -9,7 +9,11 @@ import { useGlobeStore } from './store';
 export const SCALES = [1, 2, 3, 4] as const;
 export type Scale = (typeof SCALES)[number];
 
-type Status = { tone: 'info' | 'ok' | 'err'; text: string } | null;
+// what the buttons say while they work and once they are done; only problems get a line under them
+const SAVE = { idle: 'Скачать', busy: 'Готовлю…', done: 'Сохранено' };
+const COPY = { idle: 'Копировать', busy: 'Копирую…', done: 'Скопировано' };
+const SAVE_CODE = { ...SAVE, idle: 'Скачать файл' };
+const COPY_CODE = { ...COPY, idle: 'Копировать код' };
 
 function toBlob(canvas: HTMLCanvasElement, type: string): Promise<Blob> {
   return new Promise((resolve, reject) =>
@@ -33,7 +37,10 @@ export function ImageExportPanel({ scale, onScale }: { scale: Scale; onScale: (s
   const { engine } = useGlobeTool();
   const [fmt, setFmt] = useState<'png' | 'jpg'>('png');
   const [transparent, setTransparent] = useState(false);
-  const [status, setStatus] = useState<Status>(null);
+  const bgOff = settings.bgMode === 'transparent';
+  const [error, setError] = useState<string | null>(null);
+  const [saveState, runSave] = useActionFeedback();
+  const [copyState, runCopy] = useActionFeedback();
   const frame = frameSize(settings);
   const long = Math.max(frame.w, frame.h);
 
@@ -47,33 +54,30 @@ export function ImageExportPanel({ scale, onScale }: { scale: Scale; onScale: (s
   };
   const fileName = (ext: string) => `globe-${frame.w * scale}x${frame.h * scale}.${ext}`;
 
-  const download = async () => {
-    setStatus({ tone: 'info', text: `Готовлю ${frame.w * scale} px` });
-    await new Promise(r => setTimeout(r, 30)); // let the status paint before the heavy render
-    try {
+  const download = () => {
+    setError(null);
+    runSave(async () => {
+      await new Promise(r => setTimeout(r, 30)); // let "Готовлю…" paint before the heavy render
       const r = render(fmt);
       saveBlob(await toBlob(r.canvas, fmt === 'png' ? 'image/png' : 'image/jpeg'), fileName(fmt));
-      setStatus(
-        r.clipped
-          ? { tone: 'err', text: 'Точки крупнее, чем умеет видеокарта: выберите качество поменьше' }
-          : { tone: 'ok', text: 'Сохранено' },
-      );
-    } catch (err) {
+      // the file is saved, but the largest points were capped by the graphics card
+      if (r.clipped) setError('Точки крупнее, чем умеет видеокарта: выберите качество поменьше');
+    }).catch(err => {
       console.error(err);
-      setStatus({ tone: 'err', text: 'Не хватило памяти. Выберите качество поменьше' });
-    }
+      setError('Не хватило памяти. Выберите качество поменьше');
+    });
   };
 
-  const copy = async () => {
-    try {
+  const copy = () => {
+    setError(null);
+    runCopy(async () => {
       if (!navigator.clipboard || typeof ClipboardItem === 'undefined') throw new Error('no clipboard');
       // the promise keeps the click's permission while the image renders
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': toBlob(render('png').canvas, 'image/png') })]);
-      setStatus({ tone: 'ok', text: 'PNG скопирован в буфер' });
-    } catch (err) {
+    }).catch(err => {
       console.error(err);
-      setStatus({ tone: 'err', text: 'Браузер не дал доступ к буферу. Скачайте файл' });
-    }
+      setError('Браузер не дал доступ к буферу. Скачайте файл');
+    });
   };
 
   return (
@@ -106,20 +110,20 @@ export function ImageExportPanel({ scale, onScale }: { scale: Scale; onScale: (s
         />
       </div>
       {fmt === 'png' && (
+        // with the background already off in the style, the PNG is transparent anyway: say so, don't offer a choice
         <ToggleRow
           label="Прозрачный фон"
-          hint="Без фона, виньетки и зерна"
-          checked={transparent}
+          hint={bgOff ? 'Фон выключен в стиле' : 'Без фона, виньетки и зерна'}
+          checked={transparent || bgOff}
+          disabled={bgOff}
           onChange={setTransparent}
         />
       )}
       <div className="t-actions">
-        <Pill onClick={copy}>Копировать</Pill>
-        <Pill variant="primary" onClick={download}>
-          Скачать
-        </Pill>
+        <StatusPill state={copyState} labels={COPY} onClick={copy} />
+        <StatusPill variant="primary" state={saveState} labels={SAVE} onClick={download} />
       </div>
-      {status && <Chip tone={status.tone}>{status.text}</Chip>}
+      {error && <Chip tone="err">{error}</Chip>}
     </div>
   );
 }
@@ -176,15 +180,21 @@ export function Hero() {
 export function CodeExportPanel() {
   const settings = useGlobeStore(s => s.settings);
   const [kind, setKind] = useState<CodeKind>('react');
-  const [status, setStatus] = useState<Status>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saveState, runSave] = useActionFeedback();
+  const [copyState, runCopy] = useActionFeedback();
   const code = snippet(kind, settings);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setStatus({ tone: 'ok', text: 'Код скопирован' });
-    } catch {
-      setStatus({ tone: 'err', text: 'Браузер не дал доступ к буферу. Выделите код вручную' });
-    }
+  const download = () => {
+    setError(null);
+    void runSave(() =>
+      saveBlob(new Blob([code], { type: 'text/plain' }), kind === 'react' ? 'Globe.tsx' : 'globe.html'),
+    );
+  };
+  const copy = () => {
+    setError(null);
+    runCopy(() => navigator.clipboard.writeText(code)).catch(() =>
+      setError('Браузер не дал доступ к буферу. Выделите код вручную'),
+    );
   };
   return (
     <div className="t-stack" style={{ gap: 14 }}>
@@ -205,18 +215,10 @@ export function CodeExportPanel() {
         выглядеть код.
       </p>
       <div className="t-actions">
-        <Pill
-          onClick={() =>
-            saveBlob(new Blob([code], { type: 'text/plain' }), kind === 'react' ? 'Globe.tsx' : 'globe.html')
-          }
-        >
-          Скачать файл
-        </Pill>
-        <Pill variant="primary" onClick={copy}>
-          Копировать код
-        </Pill>
+        <StatusPill state={saveState} labels={SAVE_CODE} onClick={download} />
+        <StatusPill variant="primary" state={copyState} labels={COPY_CODE} onClick={copy} />
       </div>
-      {status && <Chip tone={status.tone}>{status.text}</Chip>}
+      {error && <Chip tone="err">{error}</Chip>}
     </div>
   );
 }
