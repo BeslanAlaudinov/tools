@@ -1,5 +1,5 @@
 import type { NextConfig } from 'next';
-import { PHASE_PRODUCTION_BUILD } from 'next/constants';
+import { PHASE_DEVELOPMENT_SERVER } from 'next/constants';
 
 // GitHub Pages serves the site from /<repository>/; the deploy workflow passes that prefix in.
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || undefined;
@@ -15,8 +15,8 @@ export default function config(phase: string): NextConfig {
     // /globe/ → globe/index.html, which static hosts resolve without rewrite rules
     trailingSlash: true,
     basePath,
-    // the build writes to out/ (with `output: export` that is also where the site lands), never to .next,
-    // so it can run while `dev` is serving from .next
-    distDir: phase === PHASE_PRODUCTION_BUILD ? 'out' : '.next',
+    // A build always compiles into .next (with `output: export` Next forces that) and writes the site to out/.
+    // The dev server gets its own folder, so running a build never pulls the files from under a running `dev`.
+    ...(phase === PHASE_DEVELOPMENT_SERVER ? { distDir: '.next-dev' } : {}),
   };
 }
