@@ -1,0 +1,4 @@
+prototypes/
+packages/globe/src/data/
+pnpm-lock.yaml
+.next/

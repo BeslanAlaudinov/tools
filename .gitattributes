@@ -1,0 +1,2 @@
+# keep LF in the repository whatever the OS; Prettier and the CI expect it
+* text=auto eol=lf

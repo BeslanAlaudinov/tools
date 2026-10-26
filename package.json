@@ -1,0 +1,21 @@
+{
+  "name": "tools",
+  "private": true,
+  "description": "Библиотека визуальных инструментов для дизайнеров",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "corepack pnpm --filter @tools/web dev",
+    "build": "corepack pnpm --filter @tools/web build",
+    "typecheck": "corepack pnpm -r --parallel typecheck",
+    "test": "corepack pnpm -r test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "3.9.10",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,1564 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Точечный глобус</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@300;400;500;600&family=Unbounded:wght@400;500&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: lightbox — the live globe takes the left, an instrument rail of controls runs down the right */
+:root {
+  --bg: #dde2e7;
+  --panel: #eef1f4;
+  --field: #ffffff;
+  --line: #c4cbd3;
+  --fg: #191d22;
+  --muted: #5b646e;
+  --accent: #2c7a43;
+  --accent-ink: #ffffff;
+  --plate: #cdd4db;
+  --check-a: #eceff2;
+  --check-b: #d5dbe1;
+  --f-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Onest", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121518; --panel: #1a1e22; --field: #22272c; --line: #2f363d; --fg: #e2e6ea; --muted: #8d969f;
+    --accent: #7dcc8b; --accent-ink: #0d1a10; --plate: #0c0e10; --check-a: #2a2f34; --check-b: #1d2125;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121518; --panel: #1a1e22; --field: #22272c; --line: #2f363d; --fg: #e2e6ea; --muted: #8d969f;
+  --accent: #7dcc8b; --accent-ink: #0d1a10; --plate: #0c0e10; --check-a: #2a2f34; --check-b: #1d2125;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+.app {
+  max-width: 1440px; margin: 0 auto;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 18px;
+}
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; }
+h1 { font-family: var(--f-display); font-weight: 500; font-size: 22px; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.lede { color: var(--muted); margin: 0; max-width: 62ch; }
+
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+@media (max-width: 920px) { .work { grid-template-columns: minmax(0, 1fr); } }
+
+.stage { display: grid; gap: 12px; min-width: 0; }
+.plate {
+  position: relative; background: var(--plate); border-radius: 14px;
+  padding: clamp(12px, 3vw, 32px); display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; min-height: 320px;
+}
+.frame { position: relative; max-width: 100%; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 12px 32px -12px rgb(0 0 0 / 0.3); }
+.frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#view { touch-action: none; cursor: grab; }
+#view:active { cursor: grabbing; }
+#overlay { pointer-events: none; }
+.frame.checker {
+  background-color: var(--check-a);
+  background-image: conic-gradient(var(--check-b) 25%, transparent 0 50%, var(--check-b) 0 75%, transparent 0);
+  background-size: 20px 20px;
+}
+.hint { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 12px; color: var(--muted); white-space: nowrap; pointer-events: none; }
+@media (max-width: 620px) { .hint { display: none; } }
+
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar .spacer { flex: 1 1 auto; }
+.meta { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; margin: 0; overflow-wrap: anywhere; }
+
+.btn {
+  font: inherit; font-size: 13.5px; color: var(--fg); background: var(--field); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  transition: border-color .15s, background-color .15s;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 500; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.small { padding: 4px 9px; font-size: 12.5px; }
+.btn[disabled] { opacity: .45; cursor: default; }
+.btn .ico { font-family: var(--f-mono); font-size: 12px; width: 12px; text-align: center; }
+.chip { font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; }
+.chip:hover { border-color: var(--muted); }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+select, input[type="text"], input[type="number"] {
+  font: inherit; font-size: 13px; color: var(--fg); background: var(--field); border: 1px solid var(--line);
+  border-radius: 7px; padding: 5px 8px; min-width: 0;
+}
+input[type="number"] { font-family: var(--f-mono); font-size: 12px; }
+input[type="color"] { width: 38px; height: 28px; border: 1px solid var(--line); border-radius: 7px; padding: 2px; background: var(--field); cursor: pointer; }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0 0; }
+
+.rail {
+  background: var(--panel); border-radius: 14px; border: 1px solid var(--line);
+  position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; min-width: 0;
+}
+@media (max-width: 920px) { .rail { position: static; max-height: none; } }
+.rail details { border-bottom: 1px solid var(--line); }
+.rail details:last-child { border-bottom: 0; }
+.rail summary {
+  list-style: none; cursor: pointer; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+  font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 500;
+}
+.rail summary::-webkit-details-marker { display: none; }
+.rail summary::after { content: "+"; font-family: var(--f-mono); font-size: 14px; }
+.rail details[open] summary::after { content: "−"; }
+.group { padding: 0 16px 16px; display: grid; gap: 12px; }
+.sub { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 6px 0 -4px; }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+
+.ctl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; }
+.ctl label { font-size: 13px; }
+.ctl output { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ctl input[type="range"] { grid-column: 1 / -1; }
+.ctl.inline select { max-width: 190px; }
+.chk { display: flex; gap: 8px; align-items: center; font-size: 13px; cursor: pointer; }
+.chk input { accent-color: var(--accent); width: 15px; height: 15px; }
+.presets, .chips, .row-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px; margin-right: 6px; box-shadow: inset 0 0 0 1px rgb(127 127 127 / .35); }
+
+.addrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.addrow.coords { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto; }
+.list { display: grid; gap: 6px; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; align-items: center; }
+.item input[type="text"] { width: 100%; }
+.item .where { font-family: var(--f-mono); font-size: 11px; color: var(--muted); grid-column: 1 / -1; margin-top: -4px; }
+.item .route { font-size: 13px; overflow-wrap: anywhere; }
+.iconbtn { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--line); background: var(--field); color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+.iconbtn:hover { color: var(--fg); border-color: var(--muted); }
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; padding: 3px 4px 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--field); }
+.tag button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; }
+.tag button:hover { color: var(--fg); }
+.empty { font-size: 12.5px; color: var(--muted); margin: 0; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px);
+  background: var(--fg); color: var(--bg); padding: 9px 14px; border-radius: 9px; font-size: 13px;
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: calc(100vw - 32px); z-index: 20;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.fail { padding: 24px; text-align: center; color: var(--muted); max-width: 40ch; }
+@media (prefers-reduced-motion: reduce) { .toast, .btn { transition: none; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <h1>Точечный глобус</h1>
+    <p class="lede">Земля из точек: крутите мышью, выделяйте страны, ставьте метки и маршруты, сохраняйте кадр в PNG или JPEG либо забирайте готовый глобус на сайт.</p>
+  </header>
+
+  <main class="work">
+    <section class="stage" aria-label="Превью">
+      <div class="plate" id="plate">
+        <div class="frame" id="frame">
+          <canvas id="view" aria-label="Вращающийся точечный глобус"></canvas>
+          <canvas id="overlay" aria-hidden="true"></canvas>
+        </div>
+        <span class="hint">тяните — вращать · клик — страна · Shift — двигать · колесо — масштаб</span>
+      </div>
+      <div class="bar">
+        <button class="btn" id="play" type="button"><span class="ico" id="playIco">❚❚</span><span id="playLbl">Пауза</span></button>
+        <select id="goto" aria-label="Повернуть к региону">
+          <option value="">Повернуть к…</option>
+        </select>
+        <select id="fxQuick" aria-label="Эффект поверх">
+          <option value="off">Без эффекта</option>
+        </select>
+        <span class="spacer"></span>
+        <select id="fmt" aria-label="Формат файла">
+          <option value="png">PNG</option>
+          <option value="jpeg">JPEG</option>
+        </select>
+        <select id="exportSize" aria-label="Размер по длинной стороне">
+          <option value="1080">1080 px</option>
+          <option value="2048" selected>2048 px</option>
+          <option value="4096">4096 px</option>
+        </select>
+        <button class="btn" id="copy" type="button">Копировать</button>
+        <button class="btn primary" id="export" type="button">Скачать</button>
+      </div>
+      <p class="meta" id="meta">—</p>
+    </section>
+
+    <aside class="rail" aria-label="Настройки">
+      <details open>
+        <summary>Стиль</summary>
+        <div class="group"><div class="presets" id="presets"></div></div>
+      </details>
+      <div id="groups"></div>
+      <details>
+        <summary>Для сайта</summary>
+        <div class="group">
+          <p class="note">Глобус с текущими настройками одним HTML-файлом: без панели, вращается и крутится мышью. Положите файл рядом со страницей и вставьте код iframe.</p>
+          <div class="row-btns">
+            <button class="btn small" type="button" id="embedSave">Скачать HTML</button>
+            <button class="btn small" type="button" id="embedCode">Копировать код iframe</button>
+          </div>
+        </div>
+      </details>
+      <details>
+        <summary>Сброс</summary>
+        <div class="group"><button class="btn small" type="button" id="reset">Вернуть настройки по умолчанию</button></div>
+      </details>
+    </aside>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="data/land-mask.js"></script>
+<script src="data/countries.js"></script>
+<script id="globe-core">
+// Globe engine. Runs both inside the editor page and inside the exported embed file (window.GLOBE_EMBED set).
+(() => {
+'use strict';
+const DEG = Math.PI / 180;
+const EMBED = window.GLOBE_EMBED || null;
+
+const STYLE = {
+  layout: 'rows', density: 140, dotSize: 0.6, shape: 'circle', edgeShrink: 0.6, jitter: 0,
+  ocean: false, oceanCol: '#2ee66b', oceanOpacity: 0.15, oceanSize: 0.6, backOpacity: 0.06,
+  colorMode: 'edge', colA: '#2ee66b', colB: '#0f6b33', flowSpeed: 0.15, flowFreq: 2, glow: 0.3,
+  fillCol: '#000000', fillOpacity: 0, atmoCol: '#2ee66b', atmo: 0.18, atmoWidth: 0.06,
+  shimmer: 0.3, shimmerSpeed: 1,
+  fxOn: true, fxType: 'random', fxCol: '#d4ffe0', fxAmt: 0.8, fxSpeed: 0.35, fxWidth: 4, fxRange: 60,
+  bgMode: 'solid', bg1: '#000000', bg2: '#04140a', vignette: 0.25, grain: 0.04,
+  hiCol: '#d4ffe0', hiSize: 1.3, hiDim: 0.4,
+  markerStyle: 'glass-dark', markerAccent: '#2ee66b', markerBg: '#111814', markerText: '#ffffff', markerScale: 1, markerLine: 28, markerPulse: true,
+  arcColor: '#2ee66b', arcComet: '#d4ffe0', arcWidth: 1.5, arcHeight: 0.35, arcOpacity: 0.55, arcSpeed: 0.25, arcCometLen: 0.2, arcDash: false,
+  nightCol: '#ffcf7a', nightDim: 0.55, nightSoft: 0.12
+};
+const DEFAULTS = Object.assign({}, STYLE, {
+  autoRotate: true, rotSpeed: 6, rotDir: '1', roll: 0,
+  aspect: '1:1', zoom: 0.82, offX: 0, offY: 0,
+  yaw: -15, pitch: 30, preset: 'radar',
+  countries: [], countryClick: true,
+  markers: [{ id: 1, label: 'Netherlands', lat: 52.37, lon: 4.9 }], arcs: [], nextId: 2,
+  dayNight: false, sunMode: 'real', sunLon: 0, sunLat: 0
+});
+
+const STORE_KEY = 'dot-globe-v1';
+const clone = o => JSON.parse(JSON.stringify(o));
+// settings saved before the overlay effects were merged kept waves and radar separately
+function migrate(s) {
+  if ('pulseMode' in s && !('fxType' in s)) {
+    const radar = s.radar > 0;
+    s.fxOn = radar || s.pulseMode !== 'off';
+    s.fxType = radar ? 'radar' : s.pulseMode === 'center' ? 'center' : 'random';
+    if (s.pulseCol) s.fxCol = s.pulseCol;
+    s.fxAmt = radar ? s.radar : (s.pulseAmt ?? 0.8);
+    s.fxSpeed = radar ? (s.radarSpeed ?? 0.2) : (s.pulseSpeed ?? 0.35);
+    s.fxWidth = radar ? 24 : (s.pulseWidth ?? 4);
+    s.fxRange = s.pulseRange ?? 60;
+  }
+  ['pulseMode', 'pulseAmt', 'pulseSpeed', 'pulseRange', 'pulseWidth', 'pulseCol', 'radar', 'radarSpeed'].forEach(k => delete s[k]);
+  return s;
+}
+let st = clone(DEFAULTS);
+if (EMBED) st = Object.assign(clone(DEFAULTS), migrate(clone(EMBED)));
+else {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (saved && typeof saved === 'object') st = Object.assign(clone(DEFAULTS), migrate(saved));
+  } catch (e) { /* storage unavailable */ }
+}
+let saveTimer = 0;
+function save() {
+  if (EMBED) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(st)); } catch (e) {} }, 400);
+}
+const hooks = {};
+const emit = (name, arg) => { if (hooks[name]) hooks[name](arg); };
+
+// ---------- geo data ----------
+function readVarints(str) {
+  let p = 0;
+  return () => { let n = 0, sh = 0, b; do { b = str.charCodeAt(p++); n |= (b & 127) << sh; sh += 7; } while (b & 128); return n; };
+}
+const LAND = (() => {
+  const m = window.LAND_MASK;
+  if (!m) return null;
+  const next = readVarints(atob(m.rle)), bits = new Uint8Array(m.w * m.h);
+  for (let r = 0, i = 0; r < m.h; r++, i += m.w) {
+    for (let c = 0, v = 0; c < m.w; v ^= 1) { const n = next(); if (v) bits.fill(1, i + c, i + c + n); c += n; }
+  }
+  return { w: m.w, h: m.h, grid: bits };
+})();
+const COUNTRIES = (() => {
+  const m = window.COUNTRY_MASK;
+  if (!m) return null;
+  const next = readVarints(atob(m.rle)), grid = new Uint8Array(m.w * m.h);
+  for (let i = 0; i < grid.length;) { const v = next(), n = next(); if (v) grid.fill(v, i, i + n); i += n; }
+  return { w: m.w, h: m.h, grid, names: m.names };
+})();
+function gridAt(g, lat, lon) {
+  if (!g) return 0;
+  let x = Math.floor((lon + Math.PI) / (2 * Math.PI) * g.w) % g.w;
+  if (x < 0) x += g.w;
+  const y = Math.min(g.h - 1, Math.max(0, Math.floor((Math.PI / 2 - lat) / Math.PI * g.h)));
+  return g.grid[y * g.w + x];
+}
+const llVec = (lat, lon) => { const cl = Math.cos(lat * DEG); return [cl * Math.sin(lon * DEG), Math.sin(lat * DEG), cl * Math.cos(lon * DEG)]; };
+
+function mulberry32(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+
+// dots on the unit sphere: x = cos(lat)·sin(lon), y = sin(lat), z = cos(lat)·cos(lon)
+let dots = null, landDots = [];
+function buildDots() {
+  const N = Math.round(st.density), rand = mulberry32(1337), jit = st.jitter;
+  const pos = [], info = [], country = [];
+  landDots = [];
+  const add = (lat, lon) => {
+    if (lat > Math.PI / 2) lat = Math.PI - lat; else if (lat < -Math.PI / 2) lat = -Math.PI - lat;
+    const r = rand(), land = gridAt(LAND, lat, lon) === 1;
+    if (!land && !st.ocean) return;
+    const cl = Math.cos(lat), x = cl * Math.sin(lon), y = Math.sin(lat), z = cl * Math.cos(lon);
+    pos.push(x, y, z); info.push(land ? 1 : 0, r);
+    country.push(land ? gridAt(COUNTRIES, lat, lon) : 0);
+    if (land) landDots.push([x, y, z]);
+  };
+  const step = Math.PI / N;
+  if (st.layout === 'fib') {
+    const M = Math.round(N * N * 4 / Math.PI), ga = Math.PI * (3 - Math.sqrt(5));
+    for (let k = 0; k < M; k++) {
+      const lat = Math.asin(1 - 2 * (k + 0.5) / M), lon = ((k * ga) % (2 * Math.PI)) - Math.PI;
+      add(lat + (rand() - 0.5) * jit * step, lon + (rand() - 0.5) * jit * step / Math.max(0.05, Math.cos(lat)));
+    }
+  } else {
+    for (let i = 0; i < N; i++) {
+      const lat = -Math.PI / 2 + (i + 0.5) * step;
+      const count = st.layout === 'grid' ? 2 * N : Math.max(1, Math.round(2 * N * Math.cos(lat)));
+      const off = st.layout === 'hex' && (i & 1) ? 0.5 : 0, ls = 2 * Math.PI / count;
+      for (let j = 0; j < count; j++) {
+        add(lat + (rand() - 0.5) * jit * step, -Math.PI + (j + 0.5 + off) * ls + (rand() - 0.5) * jit * ls);
+      }
+    }
+  }
+  dots = { pos: new Float32Array(pos), info: new Float32Array(info), country: new Uint8Array(country), hi: new Float32Array(pos.length / 3), count: pos.length / 3 };
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf); gl.bufferData(gl.ARRAY_BUFFER, dots.pos, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, infoBuf); gl.bufferData(gl.ARRAY_BUFFER, dots.info, gl.STATIC_DRAW);
+  applyHighlight();
+}
+function applyHighlight() {
+  if (!dots) return;
+  const sel = new Set(st.countries);
+  for (let i = 0; i < dots.count; i++) dots.hi[i] = sel.has(dots.country[i]) ? 1 : 0;
+  gl.bindBuffer(gl.ARRAY_BUFFER, hiBuf); gl.bufferData(gl.ARRAY_BUFFER, dots.hi, gl.DYNAMIC_DRAW);
+  dirty = true;
+}
+
+// ---------- WebGL ----------
+const view = document.getElementById('view');
+const overlay = document.getElementById('overlay');
+const frameEl = document.getElementById('frame');
+const plate = document.getElementById('plate');
+const gl = view.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false, preserveDrawingBuffer: true });
+const og = overlay.getContext('2d');
+
+const VS_POINTS = `
+attribute vec3 aPos;
+attribute vec2 aInfo;
+attribute float aHi;
+uniform mat3 uRot;
+uniform vec2 uScale, uOff;
+uniform float uSide, uPx, uEdge, uTime, uGlowScale;
+uniform float uOceanSize, uOceanAlpha, uBackAlpha;
+uniform float uShimmer, uShimmerSpeed;
+uniform vec4 uWaves[4];
+uniform int uFx;
+uniform float uFxAmt, uFxWidth, uFxRange, uFxPhase;
+uniform int uColorMode;
+uniform vec3 uColA, uColB, uOceanCol, uFxCol, uHiCol, uNightCol, uSun;
+uniform float uFlowFreq, uFlowPhase, uAnyHi, uHiSize, uHiDim, uDayNight, uNightDim, uNightSoft;
+varying vec3 vCol;
+varying float vAlpha, vBright, vSize, vLevel;
+void main() {
+  vec3 p = uRot * aPos;
+  float side = p.z >= 0.0 ? 1.0 : -1.0;
+  if (side != uSide) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+  float land = aInfo.x, rnd = aInfo.y, facing = abs(p.z);
+  float size = uPx * mix(1.0, 0.3 + 0.7 * facing, uEdge);
+  float tw = 0.5 + 0.5 * sin(uTime * uShimmerSpeed * (0.6 + rnd * 1.8) * 3.0 + rnd * 61.0);
+  float bright = mix(1.0, 0.2 + 1.2 * tw * tw, uShimmer);
+  // overlay effect: 1 waves (from points / view center / markers), 2 radar, 3 scanner, 4 meridian band, 5 breathing
+  float fx = 0.0;
+  if (uFx == 1) {
+    for (int i = 0; i < 4; i++) {
+      vec4 w = uWaves[i];
+      if (w.w < 0.0) continue;
+      float d = acos(clamp(dot(aPos, w.xyz), -1.0, 1.0));
+      fx = max(fx, exp(-pow((d - w.w * uFxRange) / uFxWidth, 2.0)) * (1.0 - w.w));
+    }
+  } else if (uFx == 2) {
+    float dl = mod(uFxPhase * 6.2831853 - 3.1415927 - atan(p.x, p.z), 6.2831853);
+    fx = exp(-dl / uFxWidth);
+  } else if (uFx == 3) {
+    fx = exp(-pow((p.y - (1.2 - 2.4 * uFxPhase)) / uFxWidth, 2.0));
+  } else if (uFx == 4) {
+    float d = mod(atan(aPos.x, aPos.z) - uFxPhase * 6.2831853 + 3.1415927, 6.2831853) - 3.1415927;
+    fx = exp(-pow(d / uFxWidth, 2.0));
+  } else if (uFx == 5) {
+    fx = 0.5 - 0.5 * cos(uFxPhase * 6.2831853);
+  }
+  float hl = clamp(fx * uFxAmt, 0.0, 1.0);
+  float t = 0.0;
+  if (uColorMode == 1) t = 1.0 - facing;
+  else if (uColorMode == 2) t = aPos.y * 0.5 + 0.5;
+  else if (uColorMode == 3) t = 0.5 + 0.5 * sin(atan(aPos.x, aPos.z) * uFlowFreq + aPos.y * uFlowFreq * 0.8 + uFlowPhase);
+  else if (uColorMode == 4) t = rnd;
+  vec3 col = mix(uColA, uColB, t);
+  float alpha = side < 0.0 ? uBackAlpha : 1.0;
+  if (land < 0.5) { col = uOceanCol; size *= uOceanSize; alpha *= uOceanAlpha; }
+  if (aHi > 0.5) { col = uHiCol; size *= uHiSize; }
+  else if (uAnyHi > 0.5) alpha *= 1.0 - uHiDim;
+  float night = uDayNight * smoothstep(uNightSoft, -uNightSoft, dot(aPos, uSun));
+  col = mix(col, uNightCol, night);
+  bright *= mix(1.0, 1.0 - uNightDim, night);
+  col = mix(col, uFxCol, hl);
+  size *= 1.0 + 0.5 * hl;
+  bright *= 1.0 + 0.8 * hl;
+  vCol = col; vAlpha = alpha; vBright = bright; vSize = size;
+  vLevel = clamp(bright * 0.55 * (land < 0.5 ? 0.6 : 1.0), 0.0, 0.999);
+  gl_Position = vec4(p.xy * uScale + uOff, 0.0, 1.0);
+  gl_PointSize = max(1.0, size * uGlowScale);
+}`;
+
+const FS_POINTS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform int uShape;
+uniform float uGlow, uGlowScale, uGlyphCount;
+uniform sampler2D uGlyphs;
+varying vec3 vCol;
+varying float vAlpha, vBright, vSize, vLevel;
+float sdf(vec2 q) {
+  vec2 a = abs(q);
+  if (uShape == 0) return length(q) - 1.0;
+  if (uShape == 1) return max(a.x, a.y) - 0.86;
+  if (uShape == 2) return abs(length(q) - 0.74) - 0.2;
+  if (uShape == 3) return max(min(a.x, a.y) - 0.22, max(a.x, a.y) - 1.0);
+  if (uShape == 4) return max(a.x * 0.866 + a.y * 0.5, a.y) - 0.9;
+  if (uShape == 5) return (a.x + a.y) * 0.8 - 0.8;
+  return max(a.x - 1.0, a.y - 0.26);
+}
+void main() {
+  vec2 q = (gl_PointCoord * 2.0 - 1.0) * uGlowScale;
+  float core;
+  if (uShape == 7) {
+    if (abs(q.x) > 1.0 || abs(q.y) > 1.0) core = 0.0;
+    else {
+      float gi = floor(vLevel * uGlyphCount);
+      core = texture2D(uGlyphs, vec2((gi + q.x * 0.5 + 0.5) / uGlyphCount, q.y * 0.5 + 0.5)).a;
+    }
+  } else {
+    float aa = 2.0 / max(vSize, 1.0);
+    core = 1.0 - smoothstep(-aa, aa, sdf(q));
+  }
+  float halo = uGlow > 0.0 ? pow(max(0.0, 1.0 - length(q) / uGlowScale), 2.0) * uGlow * 0.9 : 0.0;
+  float a = clamp(core + halo * (1.0 - core), 0.0, 1.0) * vAlpha;
+  if (a < 0.003) discard;
+  gl_FragColor = vec4(vCol * min(vBright, 2.0) * a, a);
+}`;
+
+const VS_QUAD = `attribute vec2 aQ; void main() { gl_Position = vec4(aQ, 0.0, 1.0); }`;
+const FS_QUAD = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform int uPass, uBgMode;
+uniform vec2 uRes, uOff;
+uniform float uAspect, uR;
+uniform vec3 uBg1, uBg2, uFill, uAtmo;
+uniform float uFillA, uAtmoAmt, uAtmoW, uVig, uGrain, uSeed;
+void main() {
+  vec2 uv = gl_FragCoord.xy / uRes;
+  vec2 cp = uv * 2.0 - 1.0;
+  vec2 sp = vec2((cp.x - uOff.x) * uAspect, cp.y - uOff.y) / uR;
+  float d = length(sp);
+  if (uPass == 0) {
+    vec3 c = uBg1;
+    if (uBgMode == 1) c = mix(uBg2, uBg1, uv.y);
+    else if (uBgMode == 2) c = mix(uBg2, uBg1, clamp((d - 0.7) / 2.2, 0.0, 1.0));
+    gl_FragColor = vec4(c, 1.0);
+  } else if (uPass == 1) {
+    float px = 2.0 / (uRes.y * uR);
+    float a = (1.0 - smoothstep(1.0 - px, 1.0 + px, d)) * uFillA;
+    gl_FragColor = vec4(uFill * a, a);
+  } else if (uPass == 2) {
+    float g = d > 1.0 ? exp(-(d - 1.0) / uAtmoW) : pow(d, 14.0) * 0.6;
+    g *= uAtmoAmt;
+    gl_FragColor = vec4(uAtmo * g, g);
+  } else if (uPass == 3) {
+    float v = smoothstep(0.45, 1.45, length(cp * vec2(max(uAspect, 1.0), max(1.0 / uAspect, 1.0)))) * uVig;
+    gl_FragColor = vec4(0.0, 0.0, 0.0, v);
+  } else {
+    float n = fract(sin(dot(gl_FragCoord.xy + uSeed, vec2(12.9898, 78.233))) * 43758.5453);
+    gl_FragColor = vec4(vec3(n) * uGrain, uGrain);
+  }
+}`;
+
+function compile(type, text) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, text); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function program(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs)); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i); u[info.name.replace(/\[0\]$/, '')] = gl.getUniformLocation(p, info.name); }
+  return { p, u };
+}
+
+let P, Q, posBuf, infoBuf, hiBuf, quadBuf, glyphTex, maxPoint = 64;
+const GLYPHS = '.:-=+*#%@';
+function initGL() {
+  P = program(VS_POINTS, FS_POINTS);
+  Q = program(VS_QUAD, FS_QUAD);
+  posBuf = gl.createBuffer(); infoBuf = gl.createBuffer(); hiBuf = gl.createBuffer(); quadBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  glyphTex = gl.createTexture();
+  buildGlyphs();
+  maxPoint = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1];
+}
+function buildGlyphs() {
+  const S = 64, c = document.createElement('canvas');
+  c.width = S * GLYPHS.length; c.height = S;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `700 ${S * 0.9}px "JetBrains Mono", ui-monospace, Consolas, monospace`;
+  for (let i = 0; i < GLYPHS.length; i++) g.fillText(GLYPHS[i], S * i + S / 2, S * 0.54);
+  gl.bindTexture(gl.TEXTURE_2D, glyphTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  dirty = true;
+}
+
+const rgb = hex => { const n = parseInt(hex.slice(1), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
+const SHAPES = { circle: 0, square: 1, ring: 2, plus: 3, hex: 4, diamond: 5, dash: 6, glyph: 7 };
+const COLOR_MODES = { solid: 0, edge: 1, lat: 2, flow: 3, random: 4 };
+const BG_MODES = { solid: 0, vertical: 1, radial: 2, transparent: 0 };
+const FX_CODES = { random: 1, center: 1, markers: 1, radar: 2, scan: 3, meridian: 4, breath: 5 };
+
+function rotMatrix() {
+  const y = st.yaw * DEG, p = st.pitch * DEG, r = st.roll * DEG;
+  const cy = Math.cos(y), sy = Math.sin(y), cp = Math.cos(p), sp = Math.sin(p), cr = Math.cos(r), sr = Math.sin(r);
+  const Ry = [[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]];
+  const Rx = [[1, 0, 0], [0, cp, -sp], [0, sp, cp]];
+  const Rz = [[cr, -sr, 0], [sr, cr, 0], [0, 0, 1]];
+  const mul = (A, B) => A.map(row => [0, 1, 2].map(j => row[0] * B[0][j] + row[1] * B[1][j] + row[2] * B[2][j]));
+  return mul(Rz, mul(Rx, Ry));
+}
+
+// sub-solar point: real one from the clock (no equation of time), or the manual sliders
+function sunVec() {
+  if (st.sunMode !== 'real') return llVec(st.sunLat, st.sunLon);
+  const d = new Date(), doy = (d - Date.UTC(d.getUTCFullYear(), 0, 0)) / 864e5;
+  const decl = -23.44 * Math.cos(2 * Math.PI / 365 * (doy + 10));
+  const hours = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+  return llVec(decl, -(hours - 12) * 15);
+}
+
+function draw(W, H) {
+  const M = rotMatrix();
+  const aspect = W / H, R = st.zoom;
+  const transparent = st.bgMode === 'transparent';
+  gl.viewport(0, 0, W, H);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND);
+
+  gl.useProgram(Q.p);
+  const qa = gl.getAttribLocation(Q.p, 'aQ');
+  gl.uniform2f(Q.u.uRes, W, H); gl.uniform2f(Q.u.uOff, st.offX, st.offY);
+  gl.uniform1f(Q.u.uAspect, aspect); gl.uniform1f(Q.u.uR, R);
+  gl.uniform1i(Q.u.uBgMode, BG_MODES[st.bgMode]);
+  gl.uniform3fv(Q.u.uBg1, rgb(st.bg1)); gl.uniform3fv(Q.u.uBg2, rgb(st.bg2));
+  gl.uniform3fv(Q.u.uFill, rgb(st.fillCol)); gl.uniform1f(Q.u.uFillA, st.fillOpacity);
+  gl.uniform3fv(Q.u.uAtmo, rgb(st.atmoCol)); gl.uniform1f(Q.u.uAtmoAmt, st.atmo); gl.uniform1f(Q.u.uAtmoW, st.atmoWidth);
+  gl.uniform1f(Q.u.uVig, st.vignette); gl.uniform1f(Q.u.uGrain, st.grain); gl.uniform1f(Q.u.uSeed, 17.0);
+  const quad = (pass, src, dst, srcA = src, dstA = dst) => {
+    gl.useProgram(Q.p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.enableVertexAttribArray(qa); gl.vertexAttribPointer(qa, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform1i(Q.u.uPass, pass);
+    gl.blendFuncSeparate(src, dst, srcA, dstA);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.disableVertexAttribArray(qa);
+  };
+  if (!transparent) quad(0, gl.ONE, gl.ZERO);
+
+  const glowScale = 1 + st.glow * 2;
+  const px = Math.PI / Math.round(st.density) * R * (H / 2) * st.dotSize * (st.shape === 'glyph' ? 1.6 : 1);
+  const drawPoints = side => {
+    gl.useProgram(P.p);
+    const attrs = [['aPos', posBuf, 3], ['aInfo', infoBuf, 2], ['aHi', hiBuf, 1]].map(([name, buf, n]) => {
+      const loc = gl.getAttribLocation(P.p, name);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, n, gl.FLOAT, false, 0, 0);
+      return loc;
+    });
+    const u = P.u;
+    gl.uniformMatrix3fv(u.uRot, false, [M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]]);
+    gl.uniform2f(u.uScale, R / aspect, R); gl.uniform2f(u.uOff, st.offX, st.offY);
+    gl.uniform1f(u.uSide, side); gl.uniform1f(u.uPx, px); gl.uniform1f(u.uEdge, st.edgeShrink);
+    gl.uniform1f(u.uTime, time); gl.uniform1f(u.uGlowScale, glowScale);
+    gl.uniform1f(u.uOceanSize, st.oceanSize); gl.uniform1f(u.uOceanAlpha, st.oceanOpacity); gl.uniform1f(u.uBackAlpha, st.backOpacity);
+    gl.uniform1f(u.uShimmer, st.shimmer); gl.uniform1f(u.uShimmerSpeed, st.shimmerSpeed);
+    gl.uniform4fv(u.uWaves, waveUniform(M));
+    gl.uniform1i(u.uFx, st.fxOn ? FX_CODES[st.fxType] || 0 : 0);
+    gl.uniform1f(u.uFxAmt, st.fxAmt); gl.uniform1f(u.uFxWidth, Math.max(0.2, st.fxWidth) * DEG); gl.uniform1f(u.uFxRange, st.fxRange * DEG);
+    gl.uniform1f(u.uFxPhase, (time * st.fxSpeed) % 1);
+    gl.uniform1i(u.uColorMode, COLOR_MODES[st.colorMode]);
+    gl.uniform3fv(u.uColA, rgb(st.colA)); gl.uniform3fv(u.uColB, rgb(st.colB));
+    gl.uniform3fv(u.uOceanCol, rgb(st.oceanCol)); gl.uniform3fv(u.uFxCol, rgb(st.fxCol));
+    gl.uniform1f(u.uFlowFreq, st.flowFreq); gl.uniform1f(u.uFlowPhase, time * st.flowSpeed * 2 * Math.PI);
+    gl.uniform3fv(u.uHiCol, rgb(st.hiCol)); gl.uniform1f(u.uAnyHi, st.countries.length ? 1 : 0);
+    gl.uniform1f(u.uHiSize, st.hiSize); gl.uniform1f(u.uHiDim, st.hiDim);
+    gl.uniform1f(u.uDayNight, st.dayNight ? 1 : 0); gl.uniform3fv(u.uSun, sunVec());
+    gl.uniform3fv(u.uNightCol, rgb(st.nightCol)); gl.uniform1f(u.uNightDim, st.nightDim); gl.uniform1f(u.uNightSoft, st.nightSoft);
+    gl.uniform1i(u.uShape, SHAPES[st.shape]); gl.uniform1f(u.uGlow, st.glow);
+    gl.uniform1f(u.uGlyphCount, GLYPHS.length);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, glyphTex); gl.uniform1i(u.uGlyphs, 0);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.drawArrays(gl.POINTS, 0, dots.count);
+    attrs.forEach(loc => gl.disableVertexAttribArray(loc));
+  };
+  if (st.backOpacity > 0) drawPoints(-1);
+  if (st.fillOpacity > 0) quad(1, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  drawPoints(1);
+  if (st.atmo > 0) quad(2, gl.ONE, gl.ONE);
+  // vignette and grain tint the color only; the frame stays fully opaque
+  if (!transparent && st.vignette > 0) quad(3, gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);
+  if (!transparent && st.grain > 0) quad(4, gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);
+  return px * glowScale;
+}
+
+// ---------- overlay: markers and routes (2D canvas, also used for export) ----------
+function projector(M, W, H) {
+  const aspect = W / H, R = st.zoom;
+  return (v, h = 1) => {
+    const x = (M[0][0] * v[0] + M[0][1] * v[1] + M[0][2] * v[2]) * h;
+    const y = (M[1][0] * v[0] + M[1][1] * v[1] + M[1][2] * v[2]) * h;
+    const z = (M[2][0] * v[0] + M[2][1] * v[1] + M[2][2] * v[2]) * h;
+    return { x: (x * R / aspect + st.offX + 1) / 2 * W, y: (1 - (y * R + st.offY + 1) / 2) * H, z, r2: x * x + y * y };
+  };
+}
+const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+function rrect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+const markerById = id => st.markers.find(m => m.id === id);
+
+function drawArcs(g, W, H, M) {
+  if (!st.arcs.length) return;
+  const proj = projector(M, W, H), u = H / 900;
+  st.arcs.forEach((arc, k) => {
+    const a = markerById(arc.a), b = markerById(arc.b);
+    if (!a || !b) return;
+    const A = llVec(a.lat, a.lon), B = llVec(b.lat, b.lon);
+    const om = Math.acos(Math.max(-1, Math.min(1, A[0] * B[0] + A[1] * B[1] + A[2] * B[2])));
+    if (om < 1e-3) return;
+    const n = 72, s = Math.sin(om), pts = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, f1 = Math.sin((1 - t) * om) / s, f2 = Math.sin(t * om) / s;
+      const v = [A[0] * f1 + B[0] * f2, A[1] * f1 + B[1] * f2, A[2] * f1 + B[2] * f2];
+      const h = 1 + st.arcHeight * (om / Math.PI) * Math.sin(Math.PI * t);
+      const p = proj(v, h);
+      pts.push({ x: p.x, y: p.y, vis: p.z >= 0 || p.r2 > 1, t });
+    }
+    g.save();
+    g.lineCap = 'round';
+    g.globalAlpha = st.arcOpacity;
+    g.strokeStyle = st.arcColor;
+    g.lineWidth = st.arcWidth * u;
+    if (st.arcDash) g.setLineDash([6 * u, 6 * u]);
+    g.beginPath();
+    for (let i = 1; i <= n; i++) {
+      if (!pts[i].vis || !pts[i - 1].vis) continue;
+      g.moveTo(pts[i - 1].x, pts[i - 1].y); g.lineTo(pts[i].x, pts[i].y);
+    }
+    g.stroke();
+    g.setLineDash([]);
+    if (st.arcSpeed > 0) {
+      const head = (time * st.arcSpeed + k * 0.37) % 1, len = st.arcCometLen;
+      g.strokeStyle = st.arcComet;
+      g.lineWidth = st.arcWidth * 2 * u;
+      for (let i = 1; i <= n; i++) {
+        const t = pts[i].t;
+        if (t > head || t < head - len || !pts[i].vis || !pts[i - 1].vis) continue;
+        g.globalAlpha = Math.pow(1 - (head - t) / len, 1.5);
+        g.beginPath(); g.moveTo(pts[i - 1].x, pts[i - 1].y); g.lineTo(pts[i].x, pts[i].y); g.stroke();
+      }
+      const hi = Math.min(n, Math.round(head * n));
+      if (pts[hi].vis) {
+        g.globalAlpha = 1; g.fillStyle = st.arcComet;
+        g.shadowColor = st.arcComet; g.shadowBlur = 10 * u;
+        g.beginPath(); g.arc(pts[hi].x, pts[hi].y, st.arcWidth * 1.6 * u, 0, Math.PI * 2); g.fill();
+      }
+    }
+    g.restore();
+  });
+}
+
+const MARKER_STYLES = {
+  'glass-dark': { tint: 'rgba(14,18,16,0.55)', border: 'rgba(255,255,255,0.18)', blur: true },
+  'glass-light': { tint: 'rgba(255,255,255,0.32)', border: 'rgba(255,255,255,0.55)', blur: true },
+  solid: { tint: null, border: 'rgba(255,255,255,0.12)', blur: false }
+};
+let markerHits = [];
+function drawMarkers(g, W, H, M, src, hits) {
+  if (!st.markers.length) return;
+  const proj = projector(M, W, H), u = H / 900 * st.markerScale, style = MARKER_STYLES[st.markerStyle] || MARKER_STYLES['glass-dark'];
+  const canBlur = style.blur && 'filter' in g;
+  g.save();
+  g.font = `500 ${16 * u}px Onest, "Segoe UI", system-ui, sans-serif`;
+  g.textBaseline = 'middle';
+  for (const m of st.markers) {
+    const p = proj(llVec(m.lat, m.lon));
+    const vis = sstep(0.02, 0.22, p.z);
+    if (vis <= 0.01) continue;
+    g.globalAlpha = vis;
+    if (st.markerPulse) {
+      const ph = (time * 0.6 + m.id * 0.37) % 1;
+      g.globalAlpha = vis * (1 - ph) * 0.9;
+      g.strokeStyle = st.markerAccent; g.lineWidth = 1.5 * u;
+      g.beginPath(); g.arc(p.x, p.y, (5 + 22 * ph) * u, 0, Math.PI * 2); g.stroke();
+      g.globalAlpha = vis;
+    }
+    g.fillStyle = st.markerAccent;
+    g.beginPath(); g.arc(p.x, p.y, 3.5 * u, 0, Math.PI * 2); g.fill();
+    const top = p.y - st.markerLine * u;
+    if (st.markerLine > 0) {
+      g.strokeStyle = st.markerText; g.globalAlpha = vis * 0.55; g.lineWidth = 1 * u;
+      g.beginPath(); g.moveTo(p.x, p.y - 5 * u); g.lineTo(p.x, top); g.stroke();
+      g.globalAlpha = vis;
+    }
+    const label = m.label || '';
+    const tw = g.measureText(label).width, ph = 40 * u, pad = 14 * u, icon = 18 * u, gap = 8 * u;
+    const pw = pad + icon + (label ? gap + tw : 0) + pad;
+    const x0 = p.x - pw / 2, y0 = top - ph, r = ph / 2;
+    if (canBlur) {
+      g.save(); rrect(g, x0, y0, pw, ph, r); g.clip();
+      g.filter = `blur(${Math.max(1, 10 * u)}px)`;
+      const m2 = 24 * u;
+      g.drawImage(src, x0 - m2, y0 - m2, pw + 2 * m2, ph + 2 * m2, x0 - m2, y0 - m2, pw + 2 * m2, ph + 2 * m2);
+      g.restore();
+    }
+    rrect(g, x0, y0, pw, ph, r);
+    g.fillStyle = style.tint || st.markerBg; g.fill();
+    g.strokeStyle = style.border; g.lineWidth = 1 * u; g.stroke();
+    // map pin
+    const cx = x0 + pad + icon / 2, cy = y0 + ph / 2, pr = icon / 2, R0 = pr * 0.72, cy0 = cy - pr * 0.26;
+    g.beginPath(); g.arc(cx, cy0, R0, Math.PI * 0.8, Math.PI * 2.2); g.lineTo(cx, cy + pr); g.closePath();
+    g.fillStyle = st.markerAccent; g.fill();
+    g.beginPath(); g.arc(cx, cy0, R0 * 0.42, 0, Math.PI * 2);
+    g.fillStyle = st.markerStyle === 'solid' ? st.markerBg : 'rgba(10,14,12,0.85)'; g.fill();
+    if (label) { g.fillStyle = st.markerText; g.fillText(label, x0 + pad + icon + gap, cy + 0.5 * u); }
+    if (hits) hits.push({ id: m.id, x0, y0, w: pw, h: ph, ax: p.x, ay: p.y });
+  }
+  g.restore();
+}
+function drawOverlay(g, W, H, src, hits) {
+  const M = rotMatrix();
+  drawArcs(g, W, H, M);
+  drawMarkers(g, W, H, M, src, hits);
+}
+
+// ---------- animation state ----------
+let time = 0, playing = !matchMedia('(prefers-reduced-motion: reduce)').matches, dirty = true;
+const waves = [0, 1, 2].map(i => ({ o: [0, 0, 1], ph: i / 3, live: false }));
+const waveRand = mulberry32(99);
+function waveUniform(M) {
+  const out = new Float32Array(16);
+  for (let i = 0; i < 4; i++) out[i * 4 + 3] = -1;
+  if (!st.fxOn || FX_CODES[st.fxType] !== 1) return out;
+  if (st.fxType === 'markers' && st.markers.length) {
+    st.markers.slice(0, 4).forEach((m, i) => { out.set(llVec(m.lat, m.lon), i * 4); out[i * 4 + 3] = (waves[0].ph + i * 0.37) % 1; });
+  } else if (st.fxType === 'random') {
+    waves.forEach((w, i) => { if (w.live) { out.set(w.o, i * 4); out[i * 4 + 3] = w.ph; } });
+  } else {
+    // sonar from the view center (also the fallback for "from markers" with no markers)
+    for (let i = 0; i < 2; i++) { out.set([M[2][0], M[2][1], M[2][2]], i * 4); out[i * 4 + 3] = (waves[0].ph + i * 0.5) % 1; }
+  }
+  return out;
+}
+function stepWaves(dt) {
+  waves.forEach(w => {
+    w.ph += dt * st.fxSpeed;
+    if (w.ph >= 1 || !w.live) {
+      w.ph %= 1;
+      w.o = landDots.length ? landDots[(waveRand() * landDots.length) | 0] : [0, 0, 1];
+      w.live = true;
+    }
+  });
+}
+function animating() {
+  return playing && (st.autoRotate && st.rotSpeed > 0 || st.shimmer > 0 || (st.fxOn && st.fxAmt > 0) ||
+    (st.colorMode === 'flow' && st.flowSpeed > 0) || (st.markers.length && st.markerPulse) || (st.arcs.length && st.arcSpeed > 0));
+}
+
+// ---------- canvas sizing ----------
+let cssW = 600, cssH = 600;
+function aspectRatio() { const [a, b] = st.aspect.split(':').map(Number); return a / b; }
+function fitCanvas() {
+  let w, h;
+  if (EMBED) { w = window.innerWidth; h = window.innerHeight; }
+  else {
+    const cs = getComputedStyle(plate);
+    const availW = plate.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const availH = window.innerWidth <= 920 ? availW * 1.25 : Math.max(320, window.innerHeight - 230);
+    const ar = aspectRatio();
+    w = availW; h = w / ar;
+    if (h > availH) { h = availH; w = h * ar; }
+    frameEl.style.width = Math.floor(w) + 'px'; frameEl.style.height = Math.floor(h) + 'px';
+  }
+  cssW = Math.floor(w); cssH = Math.floor(h);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  view.width = overlay.width = Math.max(1, Math.round(cssW * dpr));
+  view.height = overlay.height = Math.max(1, Math.round(cssH * dpr));
+  dirty = true;
+}
+
+// ---------- loop ----------
+let last = performance.now(), fps = 60, tween = null, inertia = null, dragging = false;
+const clampPitch = p => Math.max(-90, Math.min(90, p));
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (tween) {
+    const k = Math.min(1, (now - tween.t0) / 900), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    st.yaw = tween.y0 + (tween.y1 - tween.y0) * e; st.pitch = tween.p0 + (tween.p1 - tween.p0) * e;
+    if (k >= 1) { tween = null; save(); }
+    dirty = true;
+  } else if (inertia && !dragging) {
+    st.yaw += inertia.vy * dt; st.pitch = clampPitch(st.pitch + inertia.vp * dt);
+    const f = Math.exp(-dt * 3); inertia.vy *= f; inertia.vp *= f;
+    if (Math.abs(inertia.vy) + Math.abs(inertia.vp) < 0.5) { inertia = null; save(); }
+    dirty = true;
+  } else if (playing && st.autoRotate && !dragging) {
+    st.yaw += st.rotSpeed * Number(st.rotDir) * dt;
+  }
+  if (playing) { time += dt; stepWaves(dt); }
+  if (st.yaw > 180) st.yaw -= 360; else if (st.yaw < -180) st.yaw += 360;
+  if (dirty || animating()) {
+    draw(view.width, view.height);
+    og.clearRect(0, 0, overlay.width, overlay.height);
+    markerHits = [];
+    drawOverlay(og, overlay.width, overlay.height, view, markerHits);
+    dirty = false;
+    fps = fps * 0.95 + (1 / Math.max(dt, 1e-3)) * 0.05;
+  }
+  requestAnimationFrame(frame);
+}
+function centerLatLon() {
+  const M = rotMatrix();
+  return [Math.asin(Math.max(-1, Math.min(1, M[2][1]))) / DEG, Math.atan2(M[2][0], M[2][2]) / DEG];
+}
+function flyTo(lat, lon) {
+  if (st.autoRotate) { st.autoRotate = false; emit('change', ['autoRotate']); }
+  let y1 = -lon;
+  while (y1 - st.yaw > 180) y1 -= 360;
+  while (y1 - st.yaw < -180) y1 += 360;
+  inertia = null;
+  tween = { t0: performance.now(), y0: st.yaw, y1, p0: st.pitch, p1: clampPitch(lat) };
+  save();
+}
+// screen point (device px of the view canvas) → [lat, lon] in degrees, or null off the globe
+function pick(px, py) {
+  const W = view.width, H = view.height, aspect = W / H, R = st.zoom;
+  const x = ((px / W) * 2 - 1 - st.offX) * aspect / R, y = (1 - (py / H) * 2 - st.offY) / R;
+  const r2 = x * x + y * y;
+  if (r2 > 1) return null;
+  const z = Math.sqrt(1 - r2), M = rotMatrix();
+  const v = [M[0][0] * x + M[1][0] * y + M[2][0] * z, M[0][1] * x + M[1][1] * y + M[2][1] * z, M[0][2] * x + M[1][2] * y + M[2][2] * z];
+  return [Math.asin(Math.max(-1, Math.min(1, v[1]))) / DEG, Math.atan2(v[0], v[2]) / DEG];
+}
+function countryAt(lat, lon) { return gridAt(COUNTRIES, lat * DEG, lon * DEG); }
+function countryName(i) { return COUNTRIES && COUNTRIES.names[i - 1] ? COUNTRIES.names[i - 1][0] : ''; }
+
+// ---------- interaction ----------
+let lastPt = null, downPt = null, vel = { vy: 0, vp: 0 };
+view.addEventListener('pointerdown', e => {
+  dragging = true; tween = null; inertia = null;
+  lastPt = { x: e.clientX, y: e.clientY, t: performance.now(), pan: e.shiftKey && !EMBED };
+  downPt = { x: e.clientX, y: e.clientY, t: lastPt.t };
+  vel = { vy: 0, vp: 0 };
+  view.setPointerCapture(e.pointerId);
+});
+view.addEventListener('pointermove', e => {
+  if (!dragging || !lastPt) return;
+  const dx = e.clientX - lastPt.x, dy = e.clientY - lastPt.y, now = performance.now(), dt = Math.max(1, now - lastPt.t) / 1000;
+  if (lastPt.pan) {
+    st.offX = Math.max(-1.5, Math.min(1.5, st.offX + dx / cssW * 2));
+    st.offY = Math.max(-1.5, Math.min(1.5, st.offY - dy / cssH * 2));
+    emit('change', ['offX', 'offY']);
+  } else {
+    const k = 1 / (st.zoom * cssH / 2) / DEG;
+    st.yaw += dx * k; st.pitch = clampPitch(st.pitch + dy * k);
+    vel = { vy: dx * k / dt, vp: dy * k / dt };
+  }
+  lastPt = { x: e.clientX, y: e.clientY, t: now, pan: lastPt.pan };
+  dirty = true;
+});
+function onClick(e) {
+  const rect = view.getBoundingClientRect(), sx = view.width / rect.width;
+  const px = (e.clientX - rect.left) * sx, py = (e.clientY - rect.top) * sx;
+  const hit = markerHits.slice().reverse().find(h => px >= h.x0 && px <= h.x0 + h.w && py >= h.y0 && py <= h.y0 + h.h || Math.hypot(px - h.ax, py - h.ay) < 10 * sx);
+  if (hit) { const m = markerById(hit.id); if (m) flyTo(m.lat, m.lon); return; }
+  if (EMBED || !st.countryClick) return;
+  const ll = pick(px, py);
+  if (!ll) return;
+  const c = countryAt(ll[0], ll[1]);
+  if (!c) { emit('toast', 'Здесь океан: страны нет'); return; }
+  const i = st.countries.indexOf(c);
+  if (i >= 0) st.countries.splice(i, 1); else st.countries.push(c);
+  applyHighlight(); save();
+  emit('change', ['countries']);
+  emit('toast', `${countryName(c)}: ${i >= 0 ? 'выделение снято' : 'выделена'}`);
+}
+const endDrag = e => {
+  if (!dragging) return;
+  dragging = false;
+  const moved = downPt ? Math.hypot(e.clientX - downPt.x, e.clientY - downPt.y) : 99;
+  if (e.type === 'pointerup' && moved < 5 && performance.now() - downPt.t < 500) onClick(e);
+  else if (lastPt && !lastPt.pan && performance.now() - lastPt.t < 80) inertia = { vy: vel.vy, vp: vel.vp };
+  lastPt = null; downPt = null;
+  emit('change', ['view']); save();
+};
+view.addEventListener('pointerup', endDrag);
+view.addEventListener('pointercancel', endDrag);
+if (!EMBED) {
+  view.addEventListener('wheel', e => {
+    e.preventDefault();
+    st.zoom = Math.max(0.2, Math.min(4, st.zoom * Math.exp(-e.deltaY * 0.0012)));
+    emit('change', ['zoom']); dirty = true; save();
+  }, { passive: false });
+}
+
+// ---------- export ----------
+function renderToCanvas(L, opaqueFill) {
+  const ar = EMBED ? cssW / cssH : aspectRatio();
+  const W = ar >= 1 ? L : Math.round(L * ar), H = ar >= 1 ? Math.round(L / ar) : L;
+  const keepW = view.width, keepH = view.height;
+  view.width = W; view.height = H;
+  const pt = draw(W, H);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  if (opaqueFill) { g.fillStyle = st.bg1; g.fillRect(0, 0, W, H); }
+  g.drawImage(view, 0, 0);
+  drawOverlay(g, W, H, view, null);
+  view.width = keepW; view.height = keepH; dirty = true;
+  return { canvas: c, W, H, clipped: pt > maxPoint };
+}
+
+// ---------- boot ----------
+if (!gl) {
+  plate.innerHTML = '<p class="fail">Этот браузер не умеет WebGL, а глобус рисуется через него. Откройте страницу в свежем Chrome, Edge, Firefox или Safari.</p>';
+  return;
+}
+try { initGL(); } catch (err) {
+  plate.innerHTML = '<p class="fail">Видеокарта не смогла запустить шейдеры глобуса. Попробуйте другой браузер.</p>';
+  console.error(err);
+  return;
+}
+fitCanvas();
+if (EMBED) window.addEventListener('resize', fitCanvas);
+else { new ResizeObserver(fitCanvas).observe(plate); window.addEventListener('resize', fitCanvas); }
+buildDots();
+if (document.fonts && document.fonts.load) {
+  document.fonts.load('700 40px "JetBrains Mono"').then(buildGlyphs, () => {});
+  document.fonts.load('500 16px Onest').then(() => { dirty = true; }, () => {});
+}
+requestAnimationFrame(t => { last = t; frame(t); });
+
+window.GlobeCore = {
+  get st() { return st; },
+  replaceState(next) { st = next; buildDots(); fitCanvas(); save(); },
+  STYLE, DEFAULTS, clone, hooks, save, buildDots, applyHighlight, fitCanvas, flyTo, centerLatLon, countryAt, countryName,
+  countryNames: COUNTRIES ? COUNTRIES.names.map(n => n[0]) : [], hasLand: !!LAND,
+  renderToCanvas, aspectRatio,
+  markDirty() { dirty = true; },
+  setPlaying(v) { playing = v; dirty = true; },
+  get playing() { return playing; },
+  get animating() { return animating(); },
+  get fps() { return fps; },
+  get dotCount() { return dots ? dots.count : 0; },
+  get size() { return [view.width, view.height]; }
+};
+})();
+</script>
+<script>
+// Editor UI around the globe engine.
+(() => {
+'use strict';
+const Core = window.GlobeCore;
+if (!Core) return;
+const st = () => Core.st;
+
+const PRESETS = [
+  { id: 'radar', name: 'Радар', sw: ['#2ee66b', '#000'], s: {} },
+  { id: 'blueprint', name: 'Чертёж', sw: ['#e8f0ff', '#0d2c6e'], s: {
+    shape: 'square', colorMode: 'solid', colA: '#e8f0ff', bg1: '#0d2c6e', glow: 0, atmo: 0, shimmer: 0, fxOn: false,
+    ocean: true, oceanCol: '#7b97d1', oceanOpacity: 0.35, oceanSize: 0.45, backOpacity: 0, dotSize: 0.5, edgeShrink: 0.3, vignette: 0.2, grain: 0.03,
+    hiCol: '#ffd166', markerAccent: '#ffd166', arcColor: '#ffffff', arcComet: '#ffd166', nightCol: '#7b97d1' } },
+  { id: 'paper', name: 'Бумага', sw: ['#1c1d1f', '#efede8'], s: {
+    colorMode: 'solid', colA: '#1c1d1f', bg1: '#efede8', glow: 0, atmo: 0, ocean: true, oceanCol: '#1c1d1f', oceanOpacity: 0.12,
+    oceanSize: 0.45, shimmer: 0, fxOn: false, backOpacity: 0.05, vignette: 0, grain: 0.05, dotSize: 0.55, edgeShrink: 0.5,
+    hiCol: '#e4572e', hiDim: 0.55, markerStyle: 'solid', markerBg: '#1c1d1f', markerText: '#ffffff', markerAccent: '#e4572e',
+    arcColor: '#1c1d1f', arcComet: '#e4572e', arcOpacity: 0.7, nightCol: '#1c1d1f', nightDim: 0.75 } },
+  { id: 'terminal', name: 'Терминал', sw: ['#ffb547', '#0b0906'], s: {
+    shape: 'glyph', colorMode: 'solid', colA: '#ffb547', bg1: '#0b0906', glow: 0.12, atmo: 0.1, atmoCol: '#ffb547', shimmer: 0.6,
+    fxType: 'center', fxCol: '#fff1d6', fxRange: 90, fxWidth: 6, fxSpeed: 0.3, ocean: true, oceanCol: '#ffb547', oceanOpacity: 0.16, oceanSize: 1,
+    density: 72, dotSize: 1.05, backOpacity: 0, edgeShrink: 0.3,
+    hiCol: '#fff1d6', markerAccent: '#ffb547', arcColor: '#ffb547', arcComet: '#fff1d6', nightCol: '#7a4b12' } },
+  { id: 'plasma', name: 'Плазма', sw: ['#ff4fd8', '#5b5bff'], s: {
+    colorMode: 'flow', colA: '#ff4fd8', colB: '#5b5bff', bg1: '#05030c', bg2: '#1d0d3a', bgMode: 'radial', glow: 0.6, atmo: 0.35,
+    atmoCol: '#8a5bff', atmoWidth: 0.1, shimmer: 0.2, fxType: 'meridian', fxCol: '#ffffff', fxAmt: 0.6, fxWidth: 10, fxSpeed: 0.12, backOpacity: 0.1,
+    hiCol: '#ffffff', markerAccent: '#ff4fd8', arcColor: '#a07bff', arcComet: '#ffffff', nightCol: '#2a1460' } },
+  { id: 'ice', name: 'Лёд', sw: ['#9fdcff', '#06142a'], s: {
+    shape: 'ring', colorMode: 'lat', colA: '#63c6ff', colB: '#f2fbff', bg1: '#06142a', bg2: '#0e3563', bgMode: 'radial', glow: 0.25,
+    atmo: 0.4, atmoCol: '#7fd4ff', atmoWidth: 0.09, shimmer: 0.15, fxType: 'radar', fxAmt: 0.6, fxWidth: 24, fxSpeed: 0.2, fxCol: '#ffffff', backOpacity: 0.08, density: 110, dotSize: 0.75,
+    hiCol: '#ffffff', markerAccent: '#7fd4ff', arcColor: '#bfe9ff', arcComet: '#ffffff', nightCol: '#1b3f73' } }
+];
+
+const REGIONS = [
+  ['Европа', 15, 50], ['Африка', 20, 5], ['Ближний Восток', 45, 28], ['Азия', 95, 38], ['Индия', 78, 20],
+  ['Австралия', 134, -25], ['Северная Америка', -100, 42], ['Южная Америка', -60, -15],
+  ['Тихий океан', -160, 5], ['Северный полюс', 0, 90], ['Антарктида', 0, -90]
+];
+
+const CITIES = [
+  ['Амстердам', 52.37, 4.90], ['Баку', 40.41, 49.87], ['Бангкок', 13.76, 100.50], ['Барселона', 41.39, 2.17], ['Берлин', 52.52, 13.40],
+  ['Богота', 4.71, -74.07], ['Буэнос-Айрес', -34.60, -58.38], ['Ванкувер', 49.28, -123.12], ['Варшава', 52.23, 21.01], ['Вашингтон', 38.91, -77.04],
+  ['Вена', 48.21, 16.37], ['Владивосток', 43.12, 131.89], ['Гонконг', 22.32, 114.17], ['Дели', 28.61, 77.21], ['Джакарта', -6.21, 106.85],
+  ['Дубай', 25.20, 55.27], ['Екатеринбург', 56.84, 60.61], ['Ереван', 40.18, 44.51], ['Каир', 30.04, 31.24], ['Кейптаун', -33.92, 18.42],
+  ['Киев', 50.45, 30.52], ['Лагос', 6.52, 3.38], ['Лима', -12.05, -77.04], ['Лиссабон', 38.72, -9.14], ['Лондон', 51.51, -0.13],
+  ['Лос-Анджелес', 34.05, -118.24], ['Мадрид', 40.42, -3.70], ['Мельбурн', -37.81, 144.96], ['Мехико', 19.43, -99.13], ['Милан', 45.46, 9.19],
+  ['Минск', 53.90, 27.56], ['Москва', 55.75, 37.62], ['Мумбаи', 19.08, 72.88], ['Найроби', -1.29, 36.82], ['Новосибирск', 55.03, 82.92],
+  ['Нью-Йорк', 40.71, -74.01], ['Окленд', -36.85, 174.76], ['Париж', 48.86, 2.35], ['Пекин', 39.90, 116.41], ['Прага', 50.08, 14.44],
+  ['Рейкьявик', 64.15, -21.94], ['Рио-де-Жанейро', -22.91, -43.17], ['Рим', 41.90, 12.50], ['Сан-Паулу', -23.55, -46.63], ['Сан-Франциско', 37.77, -122.42],
+  ['Санкт-Петербург', 59.94, 30.31], ['Сеул', 37.57, 126.98], ['Сидней', -33.87, 151.21], ['Сингапур', 1.35, 103.82], ['Стамбул', 41.01, 28.98],
+  ['Стокгольм', 59.33, 18.07], ['Ташкент', 41.30, 69.24], ['Тбилиси', 41.72, 44.79], ['Тель-Авив', 32.09, 34.78], ['Токио', 35.68, 139.69],
+  ['Торонто', 43.65, -79.38], ['Хельсинки', 60.17, 24.94], ['Цюрих', 47.38, 8.54], ['Чикаго', 41.88, -87.63], ['Шанхай', 31.23, 121.47],
+  ['Эр-Рияд', 24.71, 46.68], ['Алматы', 43.24, 76.89]
+].sort((a, b) => a[0].localeCompare(b[0], 'ru'));
+
+const FX = [
+  ['random', 'Вспышки по суше', { fxSpeed: 0.35, fxWidth: 4, fxRange: 60 }],
+  ['center', 'Сонар из центра', { fxSpeed: 0.3, fxWidth: 6, fxRange: 90 }],
+  ['markers', 'Пульс от меток', { fxSpeed: 0.5, fxWidth: 3, fxRange: 25 }],
+  ['radar', 'Радар', { fxSpeed: 0.2, fxWidth: 24 }],
+  ['scan', 'Сканер', { fxSpeed: 0.25, fxWidth: 8 }],
+  ['meridian', 'Волна вокруг шара', { fxSpeed: 0.12, fxWidth: 10 }],
+  ['breath', 'Дыхание', { fxSpeed: 0.25 }]
+];
+const WAVE_FX = ['random', 'center', 'markers'];
+const WHEN = {
+  fxWidth: s => s.fxType !== 'breath',
+  fxRange: s => WAVE_FX.includes(s.fxType)
+};
+
+const GROUPS = [
+  { title: 'Эффект поверх', open: true, items: [
+    { t: 'check', k: 'fxOn', l: 'Включить эффект' },
+    { t: 'select', k: 'fxType', l: 'Эффект', opts: FX.map(([v, n]) => [v, n]) },
+    { t: 'color', k: 'fxCol', l: 'Цвет' },
+    { t: 'range', k: 'fxAmt', l: 'Яркость', min: 0, max: 1, step: 0.01 },
+    { t: 'range', k: 'fxSpeed', l: 'Скорость', min: 0.02, max: 1.5, step: 0.01 },
+    { t: 'range', k: 'fxWidth', l: 'Ширина', min: 0.5, max: 60, step: 0.5, u: '°' },
+    { t: 'range', k: 'fxRange', l: 'Дальность волны', min: 5, max: 180, step: 1, u: '°' }
+  ] },
+  { title: 'Точки', open: true, items: [
+    { t: 'select', k: 'shape', l: 'Форма', opts: [['circle', 'Круг'], ['square', 'Квадрат'], ['ring', 'Кольцо'], ['plus', 'Плюс'], ['hex', 'Шестиугольник'], ['diamond', 'Ромб'], ['dash', 'Чёрточка'], ['glyph', 'Символы ASCII']] },
+    { t: 'select', k: 'layout', l: 'Раскладка', opts: [['rows', 'Ряды'], ['hex', 'Соты'], ['grid', 'Сетка меридианов'], ['fib', 'Равномерно']] },
+    { t: 'range', k: 'density', l: 'Плотность, рядов', min: 30, max: 320, step: 1 },
+    { t: 'range', k: 'dotSize', l: 'Размер точки', min: 0.1, max: 1.6, step: 0.01 },
+    { t: 'range', k: 'edgeShrink', l: 'Уменьшение к краю', min: 0, max: 1, step: 0.01 },
+    { t: 'range', k: 'jitter', l: 'Разброс', min: 0, max: 1, step: 0.01 },
+    { t: 'range', k: 'backOpacity', l: 'Обратная сторона', min: 0, max: 0.6, step: 0.01 },
+    { t: 'check', k: 'ocean', l: 'Точки в океане' },
+    { t: 'color', k: 'oceanCol', l: 'Цвет океана' },
+    { t: 'range', k: 'oceanOpacity', l: 'Яркость океана', min: 0, max: 1, step: 0.01 },
+    { t: 'range', k: 'oceanSize', l: 'Размер точек океана', min: 0.1, max: 1.5, step: 0.01 }
+  ] },
+  { title: 'Цвет', open: false, items: [
+    { t: 'select', k: 'colorMode', l: 'Окраска', opts: [['solid', 'Один цвет'], ['edge', 'От центра к краю'], ['lat', 'По широте'], ['flow', 'Перелив'], ['random', 'Случайно']] },
+    { t: 'color', k: 'colA', l: 'Основной цвет' },
+    { t: 'color', k: 'colB', l: 'Второй цвет' },
+    { t: 'range', k: 'flowSpeed', l: 'Скорость перелива', min: 0, max: 1, step: 0.01 },
+    { t: 'range', k: 'flowFreq', l: 'Частота перелива', min: 1, max: 8, step: 1 },
+    { t: 'range', k: 'glow', l: 'Свечение точек', min: 0, max: 1, step: 0.01 },
+    { t: 'sub', l: 'Шар и атмосфера' },
+    { t: 'color', k: 'fillCol', l: 'Заливка шара' },
+    { t: 'range', k: 'fillOpacity', l: 'Непрозрачность заливки', min: 0, max: 1, step: 0.01 },
+    { t: 'color', k: 'atmoCol', l: 'Цвет атмосферы' },
+    { t: 'range', k: 'atmo', l: 'Атмосфера', min: 0, max: 1, step: 0.01 },
+    { t: 'range', k: 'atmoWidth', l: 'Ширина атмосферы', min: 0.01, max: 0.3, step: 0.01 }
+  ] },
+  { title: 'Страны', open: true, items: [
+    { t: 'html', html: `
+      <div class="addrow">
+        <input type="text" id="countryInput" list="countryList" placeholder="Начните вводить страну" aria-label="Страна">
+        <button class="btn small" type="button" id="countryAdd">Выделить</button>
+      </div>
+      <datalist id="countryList"></datalist>
+      <div class="chips" id="countryChips"></div>` },
+    { t: 'check', k: 'countryClick', l: 'Клик по шару выделяет страну' },
+    { t: 'color', k: 'hiCol', l: 'Цвет выделения' },
+    { t: 'range', k: 'hiSize', l: 'Размер точек страны', min: 0.5, max: 2.5, step: 0.05 },
+    { t: 'range', k: 'hiDim', l: 'Приглушить остальные', min: 0, max: 1, step: 0.01 }
+  ] },
+  { title: 'Метки', open: true, items: [
+    { t: 'html', html: `
+      <div class="addrow">
+        <select id="citySel" aria-label="Город"></select>
+        <button class="btn small" type="button" id="cityAdd">Добавить</button>
+      </div>
+      <div class="addrow coords">
+        <input type="text" id="mkLabel" placeholder="Подпись" aria-label="Подпись метки">
+        <input type="number" id="mkLat" placeholder="шир." step="0.01" min="-90" max="90" aria-label="Широта">
+        <input type="number" id="mkLon" placeholder="долг." step="0.01" min="-180" max="180" aria-label="Долгота">
+        <button class="btn small" type="button" id="mkAdd">+</button>
+      </div>
+      <div class="row-btns"><button class="btn small" type="button" id="mkCenter">Метка в центр кадра</button></div>
+      <div class="list" id="markerList"></div>` },
+    { t: 'sub', l: 'Вид меток' },
+    { t: 'select', k: 'markerStyle', l: 'Плашка', opts: [['glass-dark', 'Тёмное стекло'], ['glass-light', 'Светлое стекло'], ['solid', 'Сплошная']] },
+    { t: 'color', k: 'markerAccent', l: 'Цвет булавки' },
+    { t: 'color', k: 'markerText', l: 'Цвет текста' },
+    { t: 'color', k: 'markerBg', l: 'Фон сплошной плашки' },
+    { t: 'range', k: 'markerScale', l: 'Размер', min: 0.5, max: 2.5, step: 0.05 },
+    { t: 'range', k: 'markerLine', l: 'Высота ножки', min: 0, max: 120, step: 1 },
+    { t: 'check', k: 'markerPulse', l: 'Пульсирующее кольцо' }
+  ] },
+  { title: 'Маршруты', open: false, items: [
+    { t: 'html', html: `
+      <div class="addrow coords">
+        <select id="arcFrom" aria-label="Откуда"></select>
+        <select id="arcTo" aria-label="Куда" style="grid-column: span 2"></select>
+        <button class="btn small" type="button" id="arcAdd">+</button>
+      </div>
+      <div class="row-btns"><button class="btn small" type="button" id="arcHub">Соединить всё с первой меткой</button></div>
+      <div class="list" id="arcList"></div>` },
+    { t: 'color', k: 'arcColor', l: 'Цвет линии' },
+    { t: 'color', k: 'arcComet', l: 'Цвет огонька' },
+    { t: 'range', k: 'arcWidth', l: 'Толщина', min: 0.5, max: 5, step: 0.1 },
+    { t: 'range', k: 'arcHeight', l: 'Высота дуги', min: 0, max: 1.2, step: 0.01 },
+    { t: 'range', k: 'arcOpacity', l: 'Яркость линии', min: 0, max: 1, step: 0.01 },
+    { t: 'range', k: 'arcSpeed', l: 'Скорость огонька', min: 0, max: 1.5, step: 0.01 },
+    { t: 'range', k: 'arcCometLen', l: 'Длина хвоста', min: 0.03, max: 0.8, step: 0.01 },
+    { t: 'check', k: 'arcDash', l: 'Пунктир' }
+  ] },
+  { title: 'День и ночь', open: false, items: [
+    { t: 'check', k: 'dayNight', l: 'Показывать ночную сторону' },
+    { t: 'select', k: 'sunMode', l: 'Солнце', opts: [['real', 'Как сейчас'], ['manual', 'Вручную']] },
+    { t: 'range', k: 'sunLon', l: 'Долгота солнца', min: -180, max: 180, step: 1, u: '°' },
+    { t: 'range', k: 'sunLat', l: 'Сезон (широта солнца)', min: -23.4, max: 23.4, step: 0.1, u: '°' },
+    { t: 'color', k: 'nightCol', l: 'Цвет ночи' },
+    { t: 'range', k: 'nightDim', l: 'Затемнение ночи', min: 0, max: 1, step: 0.01 },
+    { t: 'range', k: 'nightSoft', l: 'Мягкость границы', min: 0.01, max: 0.5, step: 0.01 }
+  ] },
+  { title: 'Анимация', open: false, items: [
+    { t: 'check', k: 'autoRotate', l: 'Вращать сам' },
+    { t: 'range', k: 'rotSpeed', l: 'Скорость вращения', min: 0, max: 60, step: 0.5, u: '°/с' },
+    { t: 'select', k: 'rotDir', l: 'Направление', opts: [['1', 'С запада на восток'], ['-1', 'С востока на запад']] },
+    { t: 'sub', l: 'Мерцание точек' },
+    { t: 'range', k: 'shimmer', l: 'Сила мерцания', min: 0, max: 1, step: 0.01 },
+    { t: 'range', k: 'shimmerSpeed', l: 'Скорость мерцания', min: 0.1, max: 4, step: 0.05 }
+  ] },
+  { title: 'Кадр', open: false, items: [
+    { t: 'select', k: 'aspect', l: 'Формат', opts: [['1:1', '1:1'], ['4:5', '4:5'], ['3:4', '3:4'], ['4:3', '4:3'], ['16:9', '16:9'], ['9:16', '9:16']] },
+    { t: 'range', k: 'zoom', l: 'Масштаб', min: 0.2, max: 4, step: 0.01 },
+    { t: 'range', k: 'offX', l: 'Сдвиг по X', min: -1.5, max: 1.5, step: 0.01 },
+    { t: 'range', k: 'offY', l: 'Сдвиг по Y', min: -1.5, max: 1.5, step: 0.01 },
+    { t: 'range', k: 'roll', l: 'Наклон оси', min: -90, max: 90, step: 0.5, u: '°' },
+    { t: 'select', k: 'bgMode', l: 'Фон', opts: [['solid', 'Сплошной'], ['vertical', 'Градиент сверху вниз'], ['radial', 'Свечение за шаром'], ['transparent', 'Прозрачный']] },
+    { t: 'color', k: 'bg1', l: 'Цвет фона' },
+    { t: 'color', k: 'bg2', l: 'Второй цвет фона' },
+    { t: 'range', k: 'vignette', l: 'Виньетка', min: 0, max: 1, step: 0.01 },
+    { t: 'range', k: 'grain', l: 'Зерно', min: 0, max: 0.3, step: 0.01 }
+  ] }
+];
+
+// ---------- controls ----------
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+document.getElementById('groups').innerHTML = GROUPS.map(gr => `
+  <details${gr.open ? ' open' : ''}>
+    <summary>${gr.title}</summary>
+    <div class="group">${gr.items.map(ctlHTML).join('')}</div>
+  </details>`).join('');
+function ctlHTML(c) {
+  const id = 'c-' + c.k;
+  switch (c.t) {
+    case 'range':
+      return `<div class="ctl"><label for="${id}">${c.l}</label><output id="o-${c.k}" for="${id}"></output>
+        <input type="range" id="${id}" data-k="${c.k}" min="${c.min}" max="${c.max}" step="${c.step}" data-u="${c.u || ''}"></div>`;
+    case 'select':
+      return `<div class="ctl inline"><label for="${id}">${c.l}</label><select id="${id}" data-k="${c.k}">${c.opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>`;
+    case 'color':
+      return `<div class="ctl inline"><label for="${id}">${c.l}</label><input type="color" id="${id}" data-k="${c.k}"></div>`;
+    case 'check':
+      return `<label class="chk"><input type="checkbox" id="${id}" data-k="${c.k}"> ${c.l}</label>`;
+    case 'sub':
+      return `<p class="sub">${c.l}</p>`;
+    case 'html':
+      return c.html;
+  }
+  return '';
+}
+function fmt(inp) {
+  const step = parseFloat(inp.step) || 1;
+  const dec = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
+  return Number(inp.value).toFixed(dec) + (inp.dataset.u ? ' ' + inp.dataset.u : '');
+}
+function syncOne(k) {
+  const inp = document.getElementById('c-' + k);
+  if (!inp) return;
+  if (inp.type === 'checkbox') inp.checked = !!st()[k]; else inp.value = st()[k];
+  const out = document.getElementById('o-' + k);
+  if (out) out.textContent = fmt(inp);
+}
+const fxQuick = document.getElementById('fxQuick');
+fxQuick.insertAdjacentHTML('beforeend', FX.map(([v, n]) => `<option value="${v}">${n}</option>`).join(''));
+function syncFx() {
+  fxQuick.value = st().fxOn ? st().fxType : 'off';
+  for (const k in WHEN) { const el = document.getElementById('c-' + k); if (el) el.closest('.ctl').hidden = !WHEN[k](st()); }
+}
+// switching the effect type loads speed and width that suit it
+function applyFxDefaults(type) {
+  const d = (FX.find(f => f[0] === type) || [])[2] || {};
+  Object.assign(st(), d);
+  Object.keys(d).forEach(syncOne);
+}
+fxQuick.addEventListener('change', () => {
+  const v = fxQuick.value;
+  if (v === 'off') st().fxOn = false;
+  else { if (st().fxType !== v) applyFxDefaults(v); st().fxOn = true; st().fxType = v; }
+  syncOne('fxOn'); syncOne('fxType'); syncFx(); markCustom();
+  Core.markDirty(); Core.save();
+});
+function syncControls() {
+  document.querySelectorAll('[data-k]').forEach(inp => syncOne(inp.dataset.k));
+  syncFx(); renderPresets(); renderCountries(); renderMarkers(); renderArcs();
+  document.getElementById('frame').classList.toggle('checker', st().bgMode === 'transparent');
+}
+const REBUILD = ['density', 'layout', 'jitter', 'ocean'];
+function onControl(e) {
+  const inp = e.target, k = inp.dataset.k;
+  if (!k) return;
+  const v = inp.type === 'checkbox' ? inp.checked : inp.type === 'range' ? parseFloat(inp.value) : inp.value;
+  if (st()[k] === v) return;
+  if (k === 'fxType') applyFxDefaults(v);
+  st()[k] = v;
+  const out = document.getElementById('o-' + k);
+  if (out) out.textContent = fmt(inp);
+  if (k === 'fxType' || k === 'fxOn') syncFx();
+  if (REBUILD.includes(k)) Core.buildDots();
+  if (k === 'aspect') Core.fitCanvas();
+  if (k === 'bgMode') document.getElementById('frame').classList.toggle('checker', v === 'transparent');
+  if (k in Core.STYLE) markCustom();
+  Core.markDirty(); Core.save();
+}
+document.querySelector('.rail').addEventListener('input', onControl);
+document.querySelector('.rail').addEventListener('change', onControl);
+
+Core.hooks.change = keys => keys.forEach(k => {
+  if (k === 'countries') renderCountries();
+  else if (k !== 'view') syncOne(k);
+});
+Core.hooks.toast = toast;
+
+// presets
+const presetsEl = document.getElementById('presets');
+function renderPresets() {
+  presetsEl.innerHTML = PRESETS.map(p => `<button class="chip" type="button" data-preset="${p.id}" aria-pressed="${st().preset === p.id}"><span class="swatch" style="background:linear-gradient(135deg, ${p.sw[0]} 50%, ${p.sw[1]} 50%)"></span>${p.name}</button>`).join('');
+}
+function markCustom() {
+  if (!st().preset) return;
+  st().preset = null;
+  presetsEl.querySelectorAll('[aria-pressed="true"]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+}
+presetsEl.addEventListener('click', e => {
+  const b = e.target.closest('[data-preset]');
+  if (!b) return;
+  const p = PRESETS.find(x => x.id === b.dataset.preset);
+  const before = REBUILD.map(k => st()[k]).join('|');
+  Object.assign(st(), Core.clone(Core.STYLE), Core.clone(p.s), { preset: p.id });
+  if (REBUILD.map(k => st()[k]).join('|') !== before) Core.buildDots();
+  syncControls(); Core.markDirty(); Core.save();
+});
+
+// countries
+const countryInput = document.getElementById('countryInput');
+document.getElementById('countryList').innerHTML = Core.countryNames.map(n => `<option value="${esc(n)}"></option>`).join('');
+function renderCountries() {
+  const el = document.getElementById('countryChips');
+  const list = st().countries;
+  el.innerHTML = list.length
+    ? list.map(i => `<span class="tag">${esc(Core.countryName(i))}<button type="button" data-uncountry="${i}" aria-label="Снять выделение">×</button></span>`).join('') +
+      (list.length > 1 ? '<button class="btn small" type="button" id="countryClear">Снять все</button>' : '')
+    : '<p class="empty">Ничего не выделено. Выберите страну в поле выше или кликните по ней на глобусе.</p>';
+}
+function addCountryByName() {
+  const name = countryInput.value.trim().toLowerCase();
+  if (!name) return;
+  const idx = Core.countryNames.findIndex(n => n.toLowerCase() === name);
+  const loose = idx >= 0 ? idx : Core.countryNames.findIndex(n => n.toLowerCase().startsWith(name));
+  if (loose < 0) { toast('Такой страны в списке нет. Выберите вариант из подсказки.'); return; }
+  const c = loose + 1;
+  if (!st().countries.includes(c)) st().countries.push(c);
+  countryInput.value = '';
+  Core.applyHighlight(); Core.save(); renderCountries();
+}
+document.getElementById('countryAdd').addEventListener('click', addCountryByName);
+countryInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addCountryByName(); } });
+document.getElementById('countryChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-uncountry]');
+  if (b) st().countries = st().countries.filter(i => i !== +b.dataset.uncountry);
+  else if (e.target.id === 'countryClear') st().countries = [];
+  else return;
+  Core.applyHighlight(); Core.save(); renderCountries();
+});
+
+// markers
+const citySel = document.getElementById('citySel');
+citySel.innerHTML = CITIES.map(([n], i) => `<option value="${i}">${n}</option>`).join('');
+function addMarker(label, lat, lon) {
+  const s = st();
+  s.markers.push({ id: s.nextId++, label, lat, lon });
+  Core.markDirty(); Core.save(); renderMarkers(); renderArcs();
+}
+document.getElementById('cityAdd').addEventListener('click', () => { const c = CITIES[+citySel.value]; addMarker(c[0], c[1], c[2]); });
+document.getElementById('mkAdd').addEventListener('click', () => {
+  const lat = parseFloat(document.getElementById('mkLat').value), lon = parseFloat(document.getElementById('mkLon').value);
+  if (!(lat >= -90 && lat <= 90) || !(lon >= -180 && lon <= 180)) { toast('Широта от −90 до 90, долгота от −180 до 180.'); return; }
+  addMarker(document.getElementById('mkLabel').value.trim(), lat, lon);
+  ['mkLabel', 'mkLat', 'mkLon'].forEach(id => { document.getElementById(id).value = ''; });
+});
+document.getElementById('mkCenter').addEventListener('click', () => {
+  const [lat, lon] = Core.centerLatLon();
+  addMarker(`Метка ${st().markers.length + 1}`, +lat.toFixed(2), +lon.toFixed(2));
+});
+const fmtLL = (lat, lon) => `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? 'с. ш.' : 'ю. ш.'}, ${Math.abs(lon).toFixed(2)}° ${lon >= 0 ? 'в. д.' : 'з. д.'}`;
+function renderMarkers() {
+  const el = document.getElementById('markerList');
+  el.innerHTML = st().markers.length ? st().markers.map(m => `
+    <div class="item" data-mid="${m.id}">
+      <input type="text" value="${esc(m.label)}" data-mlabel="${m.id}" aria-label="Подпись метки" maxlength="40">
+      <button class="iconbtn" type="button" data-mfly="${m.id}" title="Повернуть глобус к метке" aria-label="Повернуть к метке">◎</button>
+      <button class="iconbtn" type="button" data-mdel="${m.id}" title="Удалить метку" aria-label="Удалить метку">×</button>
+      <span class="where">${fmtLL(m.lat, m.lon)}</span>
+    </div>`).join('') : '<p class="empty">Меток нет. Добавьте город из списка или свои координаты.</p>';
+  const opts = st().markers.map(m => `<option value="${m.id}">${esc(m.label || 'Без подписи')}</option>`).join('');
+  const from = document.getElementById('arcFrom'), to = document.getElementById('arcTo');
+  const fv = from.value, tv = to.value;
+  from.innerHTML = opts; to.innerHTML = opts;
+  if (fv) from.value = fv;
+  if (tv) to.value = tv; else if (to.options.length > 1) to.selectedIndex = 1;
+}
+const markerList = document.getElementById('markerList');
+markerList.addEventListener('input', e => {
+  const id = +e.target.dataset.mlabel;
+  if (!id) return;
+  e.stopPropagation();
+  const m = st().markers.find(x => x.id === id);
+  if (m) { m.label = e.target.value; Core.markDirty(); Core.save(); }
+});
+markerList.addEventListener('change', e => { if (e.target.dataset.mlabel) { e.stopPropagation(); renderArcs(); renderMarkersSelectsOnly(); } });
+function renderMarkersSelectsOnly() {
+  const opts = st().markers.map(m => `<option value="${m.id}">${esc(m.label || 'Без подписи')}</option>`).join('');
+  ['arcFrom', 'arcTo'].forEach(id => { const s = document.getElementById(id), v = s.value; s.innerHTML = opts; s.value = v; });
+}
+markerList.addEventListener('click', e => {
+  const fly = e.target.closest('[data-mfly]'), del = e.target.closest('[data-mdel]');
+  if (fly) { const m = st().markers.find(x => x.id === +fly.dataset.mfly); if (m) Core.flyTo(m.lat, m.lon); }
+  if (del) {
+    const id = +del.dataset.mdel, s = st();
+    s.markers = s.markers.filter(x => x.id !== id);
+    s.arcs = s.arcs.filter(a => a.a !== id && a.b !== id);
+    Core.markDirty(); Core.save(); renderMarkers(); renderArcs();
+  }
+});
+
+// routes
+function renderArcs() {
+  const el = document.getElementById('arcList'), s = st();
+  const name = id => { const m = s.markers.find(x => x.id === id); return m ? esc(m.label || 'Без подписи') : '?'; };
+  el.innerHTML = s.arcs.length ? s.arcs.map((a, i) => `
+    <div class="item"><span class="route">${name(a.a)} → ${name(a.b)}</span><span></span>
+      <button class="iconbtn" type="button" data-adel="${i}" aria-label="Удалить маршрут">×</button></div>`).join('')
+    : `<p class="empty">${s.markers.length < 2 ? 'Для маршрута нужны хотя бы две метки.' : 'Маршрутов нет. Выберите две метки и нажмите +.'}</p>`;
+}
+function addArc(a, b) {
+  const s = st();
+  if (!a || !b || a === b) { toast('Выберите две разные метки.'); return false; }
+  if (s.arcs.some(x => (x.a === a && x.b === b) || (x.a === b && x.b === a))) return false;
+  s.arcs.push({ a, b });
+  return true;
+}
+document.getElementById('arcAdd').addEventListener('click', () => {
+  if (addArc(+document.getElementById('arcFrom').value, +document.getElementById('arcTo').value)) { Core.markDirty(); Core.save(); renderArcs(); }
+});
+document.getElementById('arcHub').addEventListener('click', () => {
+  const ms = st().markers;
+  if (ms.length < 2) { toast('Для маршрутов нужны хотя бы две метки.'); return; }
+  ms.slice(1).forEach(m => addArc(ms[0].id, m.id));
+  Core.markDirty(); Core.save(); renderArcs();
+});
+document.getElementById('arcList').addEventListener('click', e => {
+  const b = e.target.closest('[data-adel]');
+  if (!b) return;
+  st().arcs.splice(+b.dataset.adel, 1);
+  Core.markDirty(); Core.save(); renderArcs();
+});
+
+// play, regions, keyboard
+function setPlaying(v) {
+  Core.setPlaying(v);
+  document.getElementById('playIco').textContent = v ? '❚❚' : '▶';
+  document.getElementById('playLbl').textContent = v ? 'Пауза' : 'Пуск';
+}
+document.getElementById('play').addEventListener('click', () => setPlaying(!Core.playing));
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) { e.preventDefault(); setPlaying(!Core.playing); }
+});
+const gotoSel = document.getElementById('goto');
+gotoSel.insertAdjacentHTML('beforeend', REGIONS.map(([n], i) => `<option value="${i}">${n}</option>`).join(''));
+gotoSel.addEventListener('change', () => {
+  const r = REGIONS[+gotoSel.value];
+  gotoSel.value = '';
+  if (r) Core.flyTo(r[2], r[1]);
+});
+
+document.getElementById('reset').addEventListener('click', () => {
+  Core.replaceState(Core.clone(Core.DEFAULTS));
+  syncControls(); toast('Настройки сброшены');
+});
+
+// meta line
+const meta = document.getElementById('meta');
+setInterval(() => {
+  const [lat, lon] = Core.centerLatLon(), [W, H] = Core.size;
+  meta.textContent = `центр кадра ${fmtLL(lat, lon).replace(/(\d+\.\d)\d°/g, '$1°')} · ${Core.dotCount.toLocaleString('ru-RU')} точек · ${W}×${H} px` + (Core.animating ? ` · ${Math.round(Core.fps)} к/с` : '');
+}, 250);
+
+// ---------- export ----------
+const downloadsReady = (window.claude && typeof window.claude.use === 'function')
+  ? window.claude.use('downloads').catch(() => null)
+  : Promise.resolve(null);
+async function offerFile(filename, data, okMsg) {
+  const dl = await downloadsReady;
+  if (dl) {
+    try { await dl.save({ filename, data }); toast(okMsg); }
+    catch (err) { toast(err && err.code === 'declined' ? 'Сохранение отменено' : 'Сохранить не получилось. Попробуйте ещё раз.'); }
+    return;
+  }
+  const blob = data instanceof Blob ? data : new Blob([data], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast(okMsg);
+}
+function imageBlob(type) {
+  const L = +document.getElementById('exportSize').value;
+  const r = Core.renderToCanvas(L, type === 'image/jpeg' && st().bgMode === 'transparent');
+  return new Promise((res, rej) => r.canvas.toBlob(b => b ? res(Object.assign(r, { blob: b })) : rej(new Error('encode')), type, 0.92));
+}
+document.getElementById('export').addEventListener('click', async e => {
+  const btn = e.currentTarget, fmt = document.getElementById('fmt').value;
+  btn.disabled = true;
+  try {
+    const r = await imageBlob(fmt === 'png' ? 'image/png' : 'image/jpeg');
+    const [lat, lon] = Core.centerLatLon();
+    const filename = `globe-${Math.round(lat)}_${Math.round(lon)}-${r.W}x${r.H}.${fmt === 'png' ? 'png' : 'jpg'}`;
+    await offerFile(filename, r.blob, r.clipped ? `Готово: ${filename}. Точки крупнее, чем умеет видеокарта, — выберите размер поменьше.` : `Готово: ${filename}`);
+  } catch (err) {
+    toast('Не получилось собрать картинку. Выберите размер поменьше.');
+  } finally { btn.disabled = false; }
+});
+document.getElementById('copy').addEventListener('click', async () => {
+  try {
+    if (!navigator.clipboard || !window.ClipboardItem) throw new Error('no-clipboard');
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': imageBlob('image/png').then(r => r.blob) })]);
+    toast('PNG скопирован в буфер обмена');
+  } catch (err) {
+    toast('Браузер не дал доступ к буферу обмена. Скачайте файл кнопкой «Скачать».');
+  }
+});
+
+// embed: one self-contained HTML with the engine, the data and the current settings
+function embedHTML() {
+  const s = Core.clone(st());
+  const bg = s.bgMode === 'transparent' ? 'transparent' : s.bg1;
+  const core = document.getElementById('globe-core').textContent;
+  const js = v => JSON.stringify(v).replace(/</g, '\\u003c');
+  return `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Глобус</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@500&family=JetBrains+Mono:wght@700&display=swap">
+<style>
+html, body { margin: 0; height: 100%; overflow: hidden; background: ${bg}; }
+#plate { position: fixed; inset: 0; }
+.frame { position: absolute; inset: 0; }
+.frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#view { touch-action: none; cursor: grab; }
+#overlay { pointer-events: none; }
+.fail { font: 14px system-ui, sans-serif; color: #888; text-align: center; padding: 24px; }
+</style>
+</head>
+<body>
+<div id="plate"><div class="frame" id="frame"><canvas id="view" aria-label="Глобус"></canvas><canvas id="overlay" aria-hidden="true"></canvas></div></div>
+<script>window.GLOBE_EMBED = ${js(s)};<\/script>
+<script>window.LAND_MASK = ${js(window.LAND_MASK)};<\/script>
+<script>window.COUNTRY_MASK = ${js(window.COUNTRY_MASK)};<\/script>
+<script>${core}<\/script>
+</body>
+</html>
+`;
+}
+document.getElementById('embedSave').addEventListener('click', () => offerFile('globe-embed.html', embedHTML(), 'Готово: globe-embed.html'));
+document.getElementById('embedCode').addEventListener('click', async () => {
+  const code = `<iframe src="globe-embed.html" width="800" height="800" style="border:0; background:transparent" loading="lazy" title="Глобус"></iframe>`;
+  try { await navigator.clipboard.writeText(code); toast('Код iframe скопирован'); }
+  catch (err) { toast(code); }
+});
+
+// ---------- toast ----------
+let toastTimer = 0;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3400);
+}
+
+if (!Core.hasLand) toast('Не загрузилась карта суши (data/land-mask.js), поэтому точек нет.');
+syncControls();
+setPlaying(Core.playing);
+})();
+</script>

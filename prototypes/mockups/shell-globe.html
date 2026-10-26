@@ -1,0 +1,1531 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Оболочка: Точечный глобус</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap">
+<style>
+/* Layout: library tool shell — top bar, dark stage with a floating action pill, tabbed inspector on the right. Dark only, desktop only (mockup). */
+:root {
+  --bg: #0b0b0c;
+  --stage: #070708;
+  --surface: #131315;
+  --card: #1a1a1d;
+  --field: #232327;
+  --field-2: #2e2e33;
+  --fill: #4a4a51;
+  --line: rgba(255, 255, 255, 0.06);
+  --text: #f2f2f3;
+  --muted: #8e8e93;
+  --dim: #5c5c61;
+  --sel: #7c5cff;              /* outline of a selected item, fill stays the same */
+  --accent: #7c5cff;           /* temporary until the brand book */
+  --accent-soft: rgba(124, 92, 255, 0.18);
+  --ok: #3dd68c;
+  --err: #f2555a;
+  --info: #4ba3ff;
+  --r-pill: 999px;
+  --r-card: 20px;
+  --font: "Geist", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 var(--font); -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.num { font-variant-numeric: tabular-nums; }
+svg { display: block; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.viewport { height: 100%; overflow: auto; }
+.app { display: grid; grid-template-rows: 64px minmax(0, 1fr); height: 100%; min-width: 1280px; min-height: 780px; }
+
+/* ---------- top bar ---------- */
+.topbar { display: flex; align-items: center; gap: 12px; padding: 0 16px; position: relative; }
+.pill {
+  height: 40px; border-radius: var(--r-pill); background: var(--field); border: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; font-weight: 500;
+  transition: background-color .15s; white-space: nowrap;
+}
+.pill:hover { background: var(--field-2); }
+.pill.back { padding-left: 10px; color: var(--muted); }
+.pill.back:hover { color: var(--text); background: var(--field); }
+.pill.primary { background: var(--accent); color: #fff; }
+.pill.primary:hover { filter: brightness(1.08); }
+.pill.sm { height: 34px; padding: 0 14px; font-size: 13px; }
+.vsep { width: 1px; height: 24px; background: var(--line); }
+.tool { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+.tool .ico { width: 32px; height: 32px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+.spacer { flex: 1; }
+.group { display: inline-flex; background: var(--field); border-radius: var(--r-pill); padding: 4px; gap: 2px; }
+.ibtn { width: 32px; height: 32px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; color: var(--text); flex: none; }
+.ibtn:hover { background: var(--field-2); }
+.ibtn[disabled] { color: var(--dim); background: transparent; cursor: default; }
+
+/* status chips (ref 4) */
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 10px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.chip.ok { color: var(--ok); background: rgba(61, 214, 140, 0.12); }
+.chip.info { color: var(--info); background: rgba(75, 163, 255, 0.12); }
+.chip.err { color: var(--err); background: rgba(242, 85, 90, 0.12); }
+.chip.dim { color: var(--muted); background: var(--field); }
+
+/* ---------- main ---------- */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 12px; padding: 0 12px 12px; min-height: 0; }
+.stage { position: relative; background: var(--stage); border-radius: 24px; overflow: hidden; display: grid; place-items: center; min-height: 0; }
+#globe { display: block; cursor: grab; }
+#globe:active { cursor: grabbing; }
+.stage .corner { position: absolute; top: 16px; display: flex; gap: 6px; }
+.stage .corner.l { left: 16px; }
+.stage .corner.r { right: 16px; }
+.hk { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px 0 8px; border-radius: var(--r-pill); background: rgba(255, 255, 255, 0.05); color: var(--muted); font-size: 12.5px; }
+.hk svg { color: var(--text); opacity: .8; }
+.key { font-size: 11px; font-weight: 600; color: var(--text); background: var(--field-2); border-radius: 6px; padding: 2px 6px; }
+
+/* floating action pill (ref 3) */
+.dock {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 4px; padding: 6px;
+  background: rgba(30, 30, 34, 0.78); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border-radius: var(--r-pill); box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.6);
+}
+.dock .ibtn { width: 40px; height: 40px; }
+.dock .play { background: var(--field-2); }
+.dock .dsep { width: 1px; height: 22px; background: rgba(255, 255, 255, 0.08); margin: 0 4px; }
+.dbtn { height: 40px; border: 0; background: transparent; border-radius: var(--r-pill); padding: 0 14px; display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
+.dbtn:hover { background: var(--field-2); }
+.dbtn .muted { color: var(--muted); }
+.zoom { display: inline-flex; align-items: center; gap: 2px; }
+.zoom .val { min-width: 52px; text-align: center; font-weight: 500; }
+.menu {
+  position: absolute; bottom: 64px; left: 50px; width: 240px; padding: 6px;
+  background: #1e1e22; border-radius: 18px; box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.7);
+}
+.menu button { width: 100%; height: 38px; border: 0; background: transparent; border-radius: 12px; display: flex; align-items: center; gap: 10px; padding: 0 12px; text-align: left; }
+.menu button:hover { background: var(--field); }
+.menu button[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--sel); }
+.menu .mk { margin-left: auto; opacity: 0; }
+.menu button[aria-checked="true"] .mk { opacity: 1; }
+
+/* ---------- inspector ---------- */
+.inspector { background: var(--surface); border-radius: 24px; display: flex; flex-direction: column; min-height: 0; }
+.tabs { padding: 12px; }
+.seg { display: flex; background: var(--field); border-radius: var(--r-pill); padding: 4px; gap: 2px; }
+.seg button { flex: 1; height: 34px; border: 0; background: transparent; border-radius: var(--r-pill); color: var(--muted); font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; white-space: nowrap; }
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--field-2); color: var(--text); }
+.seg.sm button { height: 30px; font-size: 13px; }
+.seg.tall { border-radius: 18px; }
+.seg.tall button { height: 46px; border-radius: 14px; display: grid; align-content: center; gap: 1px; line-height: 1.15; }
+.seg.tall small { font-size: 11.5px; color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }
+.seg.tall button[aria-pressed="true"] small { color: var(--muted); }
+.seg button[disabled] { cursor: default; opacity: .55; }
+.seg button[disabled]:hover { color: var(--muted); }
+.soon { font-size: 10.5px; color: var(--muted); background: var(--field-2); border-radius: 6px; padding: 1px 5px; }
+.panel { overflow: auto; padding: 0 12px 16px; display: grid; gap: 10px; align-content: start; min-height: 0; }
+.card { background: var(--card); border-radius: var(--r-card); padding: 14px 16px 16px; display: grid; gap: 14px; }
+.card-h { display: flex; align-items: center; gap: 8px; margin-bottom: -2px; min-height: 28px; }
+.card-h h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.card-h .count { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.card-h .ibtn { width: 28px; height: 28px; color: var(--muted); }
+.card-h .ibtn:hover { color: var(--text); }
+.stack { display: grid; gap: 8px; }
+.lbl { color: var(--muted); }
+
+/* property row: label · editable value · fill slider (ref 2) */
+.row { display: grid; grid-template-columns: minmax(0, 1fr) 80px 108px; gap: 10px; align-items: center; }
+.row.wide { grid-template-columns: minmax(0, 1fr) auto; }
+.val { height: 32px; border-radius: 10px; background: var(--field); display: flex; align-items: center; justify-content: center; gap: 2px; padding: 0 8px; font-weight: 500; font-variant-numeric: tabular-nums; cursor: text; }
+.val:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.val input { width: 4.2ch; min-width: 0; border: 0; background: transparent; outline: none; padding: 0; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }
+.val i { font-style: normal; color: var(--dim); font-weight: 400; }
+input.fill { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; margin: 0; border-radius: 10px; background: linear-gradient(90deg, var(--fill) var(--p, 50%), var(--field) var(--p, 50%)); cursor: pointer; }
+input.fill::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 24px; border-radius: 8px; background: var(--text); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+input.fill::-moz-range-thumb { width: 14px; height: 24px; border: 0; border-radius: 8px; background: var(--text); }
+input.fill::-moz-range-track { background: transparent; }
+
+/* color: hex field */
+.hex { height: 32px; border-radius: 10px; background: var(--field); display: inline-flex; align-items: center; gap: 8px; padding: 0 10px 0 6px; cursor: text; }
+.hex:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.hex .sw { width: 20px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.hex input { width: 7.4ch; border: 0; background: transparent; outline: none; padding: 0; font-weight: 500; font-variant-numeric: tabular-nums; text-transform: uppercase; }
+
+/* color slider (ref 1: color / white balance) */
+.cslider { position: relative; height: 32px; border-radius: var(--r-pill); background: var(--g); cursor: pointer; touch-action: none; }
+.cslider .knob { position: absolute; top: 3px; width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff; background: var(--kc, transparent); transform: translateX(-50%); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); pointer-events: none; }
+.cline { display: grid; grid-template-columns: minmax(0, 1fr) 32px; gap: 10px; align-items: center; }
+
+/* ruler (ref 1: rotation) */
+.ruler { position: relative; height: 48px; border-radius: 14px; background: var(--field); overflow: hidden; cursor: ew-resize; touch-action: none; }
+.ruler .ticks { position: absolute; inset: 0; }
+.ruler .tk { position: absolute; bottom: 12px; width: 2px; height: 14px; border-radius: 1px; background: var(--fill); transform: translateX(-1px); }
+.ruler .tk.maj { height: 22px; background: var(--muted); }
+.ruler .tk.zero { background: var(--text); }
+.ruler .center { position: absolute; left: 50%; bottom: 8px; width: 3px; height: 32px; margin-left: -1.5px; border-radius: 2px; background: var(--text); }
+
+/* discrete steps (ref 1 generate, ref 2 size) */
+.steps { display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 2px; position: relative; }
+.steps::before { content: ""; position: absolute; left: 16px; right: 16px; top: 50%; height: 2px; background: var(--field-2); }
+.steps button { position: relative; border: 0; background: var(--field-2); width: 14px; height: 14px; border-radius: 5px; padding: 0; margin: 0 9px; }
+.steps button[aria-pressed="true"] { width: auto; min-width: 48px; height: 34px; border-radius: 12px; background: var(--text); color: #111; font-weight: 600; padding: 0 12px; margin: 0; }
+
+/* palette bar with selectable swatches */
+.palette { display: flex; height: 40px; border-radius: 12px; overflow: hidden; }
+.palette button { flex: 1; border: 0; padding: 0; position: relative; }
+.palette button[aria-pressed="true"]::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--sel); border-radius: inherit; }
+.palette button:first-child { border-radius: 12px 0 0 12px; }
+.palette button:last-child { border-radius: 0 12px 12px 0; }
+
+/* format tiles with resolutions */
+.fmt { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.fmt button { height: 86px; border: 0; background: var(--field); border-radius: 14px; display: grid; justify-items: center; align-content: center; gap: 6px; color: var(--muted); padding: 0; }
+.fmt button:hover { color: var(--text); }
+.fmt button[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1.5px var(--sel); }
+.fmt .box { border: 2px solid currentColor; border-radius: 4px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.fmt b { font-weight: 600; font-size: 13px; color: var(--text); line-height: 1; }
+.fmt small { font-size: 11.5px; font-variant-numeric: tabular-nums; line-height: 1; }
+.custom { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.custom .val { justify-content: space-between; padding: 0 10px; }
+.custom .val input { width: 100%; text-align: left; }
+.custom .x { color: var(--dim); }
+.lock { width: 32px; height: 32px; border-radius: 10px; border: 0; background: var(--field); color: var(--muted); display: grid; place-items: center; }
+.lock[aria-pressed="true"] { color: var(--text); }
+
+/* toggle with description (ref 3) */
+.trow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.trow small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+.tgl { width: 46px; height: 28px; border: 0; border-radius: var(--r-pill); background: var(--field-2); position: relative; padding: 0; transition: background-color .2s; flex: none; }
+.tgl::after { content: ""; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.tgl[aria-pressed="true"] { background: var(--accent); }
+.tgl[aria-pressed="true"]::after { transform: translateX(18px); }
+
+/* presets with previews */
+.presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.preset { border: 0; background: transparent; padding: 0; display: grid; gap: 6px; text-align: center; color: var(--muted); font-size: 12.5px; }
+.preset canvas { width: 100%; aspect-ratio: 1; border-radius: 14px; background: #000; box-shadow: inset 0 0 0 1px var(--line); }
+.preset[aria-pressed="true"] { color: var(--text); }
+.preset[aria-pressed="true"] canvas { box-shadow: 0 0 0 2px var(--sel); }
+
+/* lists */
+.search { display: flex; align-items: center; gap: 8px; height: 40px; border-radius: var(--r-pill); background: var(--field); padding: 0 6px 0 14px; color: var(--muted); }
+.search input { flex: 1; border: 0; background: transparent; outline: none; min-width: 0; }
+.search input::placeholder { color: var(--dim); }
+.search:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { display: inline-flex; align-items: center; gap: 4px; height: 30px; border-radius: var(--r-pill); background: var(--field); padding: 0 6px 0 12px; font-weight: 500; }
+.tag .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 2px; }
+.tag button { width: 20px; height: 20px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); display: grid; place-items: center; }
+.tag button:hover { background: var(--field-2); color: var(--text); }
+.items { display: grid; gap: 2px; margin: 0 -6px; }
+.item { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px; border-radius: 14px; }
+.item:hover { background: var(--field); }
+.item .pin { width: 36px; height: 36px; border-radius: 11px; background: var(--field); color: var(--accent); display: grid; place-items: center; }
+.item:hover .pin { background: var(--field-2); }
+.item .txt { min-width: 0; }
+.item .t { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .c { display: block; color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .acts { display: flex; gap: 2px; }
+.item .ibtn { width: 30px; height: 30px; color: var(--muted); }
+.item .ibtn:hover { color: var(--text); }
+.addbtn { height: 40px; width: 100%; border: 1.5px dashed var(--field-2); background: transparent; border-radius: 14px; color: var(--muted); font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.addbtn:hover { color: var(--text); border-color: var(--fill); }
+.sheet { background: var(--field); border-radius: 16px; padding: 12px; display: grid; gap: 10px; }
+.sheet .seg { background: var(--card); }
+.sheet .seg button[aria-pressed="true"] { background: var(--field-2); }
+.field { height: 38px; border-radius: 12px; background: var(--card); display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+.field:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.field input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; }
+.field input::placeholder { color: var(--dim); }
+.field i { font-style: normal; color: var(--dim); font-size: 12.5px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.suggest { display: grid; gap: 2px; }
+.suggest button { height: 36px; border: 0; border-radius: 10px; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; text-align: left; }
+.suggest button:hover { background: var(--card); }
+.suggest button[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--sel); }
+.suggest small { color: var(--dim); font-variant-numeric: tabular-nums; }
+.sheet-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.note { margin: 0; color: var(--muted); font-size: 12.5px; }
+
+/* route rows: editable endpoints */
+.route { display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr) 30px; gap: 6px; align-items: center; }
+.route .arrow { color: var(--dim); text-align: center; }
+.sel {
+  -webkit-appearance: none; appearance: none; height: 34px; width: 100%; min-width: 0; border: 0; border-radius: var(--r-pill);
+  background: var(--field) no-repeat right 10px center / 12px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='3'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  padding: 0 28px 0 12px; font-weight: 500; text-overflow: ellipsis; cursor: pointer;
+}
+.sel:hover { background-color: var(--field-2); }
+.sheet .sel { background-color: var(--card); }
+.route-build { display: grid; grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr); gap: 6px; align-items: end; }
+.route-build .rb { display: grid; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+.route-build .rb .dd-btn { color: var(--text); font-size: 14px; }
+.swap { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--card); color: var(--muted); display: grid; place-items: center; }
+.swap:hover { color: var(--text); }
+.linkbtn { border: 0; background: transparent; color: var(--muted); font-size: 13px; padding: 0; text-decoration: underline; text-underline-offset: 3px; justify-self: start; }
+.linkbtn:hover { color: var(--text); }
+
+/* effect tiles */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tile { border: 0; background: var(--field); border-radius: 14px; height: 66px; display: grid; place-items: center; align-content: center; gap: 6px; color: var(--muted); font-size: 12.5px; font-weight: 500; }
+.tile:hover { color: var(--text); }
+.tile[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1.5px var(--sel); }
+
+/* export popover */
+.pop {
+  position: absolute; top: 60px; right: 16px; width: 380px; z-index: 20; padding: 16px;
+  background: #1b1b1f; border-radius: 24px; display: grid; gap: 14px;
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+.pop h4 { margin: 0; font-size: 15px; font-weight: 600; }
+.pop .seg { background: #26262b; }
+.pop .seg button[aria-pressed="true"] { background: #36363c; }
+.pop .row.wide .lbl small { display: block; color: var(--dim); font-size: 12px; }
+.outsize { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 14px; border-radius: 14px; background: #232328; }
+.outsize b { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.outsize span { color: var(--muted); font-size: 12.5px; }
+.pop .actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+.pop .actions .pill { height: 44px; }
+.code { margin: 0; background: #111113; border-radius: 14px; padding: 12px 14px; font: 12px/1.6 var(--mono); color: #c9c9d1; white-space: pre; overflow: auto; max-height: 190px; }
+.code .k { color: #b9a8ff; }
+.code .s { color: #8fe3b0; }
+.code .c { color: var(--dim); }
+
+.chip b { color: var(--text); font-weight: 600; margin-right: 4px; }
+
+/* reset: quiet button, confirm popover, undo toast */
+.pill.quiet { background: transparent; color: var(--muted); padding: 0 12px; }
+.pill.quiet:hover, .pill.quiet[aria-expanded="true"] { background: transparent; color: var(--text); }
+.pill.danger { background: var(--err); color: #fff; }
+.pill.danger:hover { filter: brightness(1.08); }
+.reset-pop { width: 340px; right: auto; }
+.reset-pop h4 { font-size: 15px; }
+.choices { display: grid; gap: 6px; }
+.choices button {
+  border: 0; background: #232328; border-radius: 14px; padding: 12px; display: grid; grid-template-columns: 18px 1fr; gap: 10px;
+  text-align: left; align-items: start;
+}
+.choices button:hover { background: #2a2a30; }
+.choices button[aria-pressed="true"] { background: #34343a; }
+.choices b { display: block; font-weight: 500; }
+.choices small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.radio { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--fill); margin-top: 1px; }
+.choices button[aria-pressed="true"] .radio { box-shadow: inset 0 0 0 5px var(--accent); }
+.toast {
+  position: absolute; left: 50%; bottom: 84px; transform: translate(-50%, 16px); z-index: 15; white-space: nowrap;
+  display: flex; align-items: center; gap: 14px; height: 48px; padding: 0 8px 0 18px; border-radius: var(--r-pill);
+  background: #26262b; box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.toast .pill { height: 34px; padding: 0 14px; background: var(--field-2); }
+.toast .key { margin-left: -6px; }
+.pop-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.pop-h .size { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* custom dropdown */
+.dd { position: relative; min-width: 0; }
+.dd-btn {
+  width: 100%; height: 34px; border: 0; border-radius: var(--r-pill); background: var(--field);
+  display: flex; align-items: center; gap: 6px; padding: 0 10px 0 12px; font-weight: 500; text-align: left; outline: none;
+}
+.dd-btn span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dd-btn svg { color: var(--muted); flex: none; transition: transform .15s; }
+.dd-btn:hover { background: var(--field-2); }
+.dd-btn:focus-visible { box-shadow: inset 0 0 0 1.5px var(--sel); }
+.dd.open .dd-btn { background: var(--field-2); }
+.dd.open .dd-btn svg { transform: rotate(180deg); }
+.sheet .dd-btn { background: var(--card); }
+.dd-menu {
+  position: absolute; left: 0; top: calc(100% + 6px); min-width: 100%; width: max-content; max-width: 240px; z-index: 30;
+  background: #222227; border-radius: 16px; padding: 6px; display: grid; gap: 2px;
+  box-shadow: 0 18px 44px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+.dd-menu button { height: 36px; border: 0; background: transparent; border-radius: 10px; display: flex; align-items: center; gap: 10px; padding: 0 10px; text-align: left; outline: none; }
+.dd-menu button:hover, .dd-menu button.hl { background: var(--field-2); }
+.dd-menu button .mk { margin-left: auto; color: var(--accent); opacity: 0; }
+.dd-menu button[aria-selected="true"] .mk { opacity: 1; }
+
+/* swatch inside a HEX field opens the picker */
+.hex .sw { cursor: pointer; }
+.hex .sw:hover { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); }
+.picker {
+  position: fixed; z-index: 40; width: 260px; padding: 12px; display: grid; gap: 12px;
+  background: #1f1f24; border-radius: 20px; box-shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+.sv { position: relative; height: 150px; border-radius: 12px; cursor: crosshair; touch-action: none;
+  background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(var(--h, 260) 100% 50%)); }
+.sv .knob { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); pointer-events: none; }
+.hue { position: relative; height: 16px; border-radius: var(--r-pill); cursor: pointer; touch-action: none;
+  background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+.hue .knob { position: absolute; top: -3px; width: 22px; height: 22px; margin-left: -11px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); pointer-events: none; }
+.picker .hex { width: 100%; }
+.picker .hex input { flex: 1; }
+.swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.swatches button { aspect-ratio: 1; border: 0; border-radius: 8px; padding: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.swatches button:hover { box-shadow: inset 0 0 0 2px var(--sel); }
+.picker .cap { color: var(--muted); font-size: 12px; margin: 0 0 -6px; }
+
+/* preview */
+.preview { position: fixed; inset: 0; z-index: 50; background: #050506; display: grid; grid-template-rows: 64px minmax(0, 1fr); }
+.preview-bar { display: flex; align-items: center; gap: 12px; padding: 0 16px; }
+.preview-bar .title { font-weight: 600; }
+.preview-stage { display: grid; place-items: center; padding: 0 24px 24px; min-height: 0; }
+.preview-frame { background: #000; border-radius: 6px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06); display: grid; place-items: center; overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) { .tgl, .tgl::after, .pill, .dd-btn svg { transition: none; } }
+</style>
+
+<div class="viewport">
+<div class="app">
+  <header class="topbar">
+    <button class="pill back" type="button" title="Главная библиотеки появится позже">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      Библиотека
+    </button>
+    <span class="vsep"></span>
+    <div class="tool">
+      <span class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>
+      Globe
+    </div>
+    <span class="chip ok">Сохранено</span>
+    <span class="spacer"></span>
+    <button class="pill quiet" type="button" id="resetBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="resetPop">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+      Сбросить
+    </button>
+    <div class="group" role="group" aria-label="История">
+      <button class="ibtn" type="button" id="undo" title="Отменить (Ctrl+Z)" aria-label="Отменить"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+      <button class="ibtn" type="button" id="redo" title="Повторить (Ctrl+Shift+Z)" aria-label="Повторить"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+    </div>
+    <span class="vsep"></span>
+    <button class="pill" type="button" id="previewBtn" title="Посмотреть кадр без интерфейса">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      Предпросмотр
+    </button>
+    <button class="pill primary" type="button" id="exportBtn" aria-expanded="true" aria-controls="pop">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      Экспорт
+    </button>
+
+    <div class="pop reset-pop" id="resetPop" role="dialog" aria-label="Сброс настроек" hidden>
+      <div class="stack" style="gap:4px">
+        <h4>Вернуть настройки по умолчанию?</h4>
+        <p class="note">Если передумаете, сброс можно отменить.</p>
+      </div>
+      <div class="choices" id="resetScope">
+        <button type="button" aria-pressed="true" data-scope="style"><span class="radio"></span><span><b>Только стиль</b><small>Точки, цвета, движение и кадр. Метки, маршруты и страны останутся.</small></span></button>
+        <button type="button" aria-pressed="false" data-scope="all"><span class="radio"></span><span><b>Всё</b><small id="resetAllNote">Ещё удалятся метки, маршруты и выделенные страны.</small></span></button>
+      </div>
+      <div class="actions">
+        <button class="pill" type="button" id="resetCancel">Отмена</button>
+        <button class="pill danger" type="button" id="resetConfirm">Сбросить</button>
+      </div>
+    </div>
+
+    <div class="pop" id="pop" role="dialog" aria-label="Экспорт">
+      <div class="pop-h"><h4>Экспорт</h4><span class="size" id="outSize">2160 × 2160 px</span></div>
+      <div class="seg" id="expKind">
+        <button type="button" aria-pressed="true" data-kind="image">Картинка</button>
+        <button type="button" aria-pressed="false" data-kind="code">Код</button>
+        <button type="button" aria-pressed="false" disabled>Видео <span class="soon">скоро</span></button>
+      </div>
+
+      <div class="stack" data-kind-panel="image" style="gap:14px">
+        <div class="row wide"><span class="lbl">Формат файла</span>
+          <div class="seg sm" data-seg style="width:150px"><button type="button" aria-pressed="true">PNG</button><button type="button" aria-pressed="false">JPG</button></div>
+        </div>
+        <div class="stack">
+          <div class="row wide"><span class="lbl">Качество<small>во сколько раз крупнее кадра</small></span></div>
+          <div class="seg tall" id="scale" data-seg>
+            <button type="button" aria-pressed="false" data-k="1">1×<small></small></button>
+            <button type="button" aria-pressed="true" data-k="2">2×<small></small></button>
+            <button type="button" aria-pressed="false" data-k="3">3×<small></small></button>
+            <button type="button" aria-pressed="false" data-k="4">4×<small></small></button>
+          </div>
+        </div>
+        <div class="trow">
+          <div>Прозрачный фон<small>Только PNG, без виньетки и зерна</small></div>
+          <button class="tgl" type="button" aria-pressed="false" aria-label="Прозрачный фон"></button>
+        </div>
+        <div class="actions">
+          <button class="pill" type="button">Копировать</button>
+          <button class="pill primary" type="button">Скачать</button>
+        </div>
+      </div>
+
+      <div class="stack" data-kind-panel="code" style="gap:14px" hidden>
+        <div class="seg sm" data-seg id="codeKind">
+          <button type="button" aria-pressed="true" data-code="react">React</button>
+          <button type="button" aria-pressed="false" data-code="wc">Web Component</button>
+          <button type="button" aria-pressed="false" data-code="html">HTML</button>
+        </div>
+        <pre class="code" id="codeBox"></pre>
+        <p class="note">Глобус с текущими настройками. Пакет и стек выберем позже, сейчас это пример того, как будет выглядеть код.</p>
+        <div class="actions">
+          <button class="pill" type="button">Скачать файл</button>
+          <button class="pill primary" type="button">Копировать код</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="stage" id="stage" aria-label="Холст">
+      <canvas id="globe" aria-label="Глобус"></canvas>
+      <div class="corner l"><span class="chip dim num" id="frameChip"><b>1:1</b>1080 × 1080</span></div>
+      <div class="corner r" aria-label="Управление">
+        <span class="hk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V7a2 2 0 0 0-4 0v3M14 10V5a2 2 0 0 0-4 0v5M10 10V7a2 2 0 0 0-4 0v7a8 8 0 0 0 14 4l1.5-3a2 2 0 0 0-3.4-2L18 15"/></svg>Тянуть — вращать</span>
+        <span class="hk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 9 5 12 1.8-5.2L21 14z"/><path d="M7.2 2.2 8 5.1M5.1 8l-2.9-.8M14 4.1 12 6.2M6.2 12l-2.1 2"/></svg>Клик — страна</span>
+        <span class="hk"><span class="key">Shift</span>+ тянуть — двигать</span>
+      </div>
+
+      <div class="dock" role="toolbar" aria-label="Действия с холстом">
+        <button class="ibtn play" type="button" id="play" aria-label="Пауза"></button>
+        <span class="dsep"></span>
+        <button class="dbtn" type="button" id="fxBtn" aria-haspopup="menu" aria-expanded="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 12 18 6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>
+          <span id="fxName">Радар</span>
+          <svg class="muted" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="dbtn" type="button" id="shuffle">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>
+          Перемешать
+        </button>
+        <span class="dsep"></span>
+        <button class="ibtn" type="button" aria-label="Вписать в экран"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg></button>
+        <div class="zoom">
+          <button class="ibtn" type="button" aria-label="Уменьшить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+          <span class="val num" style="background:transparent">100%</span>
+          <button class="ibtn" type="button" aria-label="Увеличить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        </div>
+        <div class="menu" id="fxMenu" role="menu" hidden></div>
+      </div>
+    </section>
+
+    <aside class="inspector" aria-label="Настройки">
+      <div class="tabs">
+        <div class="seg" id="tabs" role="tablist">
+          <button type="button" aria-pressed="true" data-tab="style">Стиль</button>
+          <button type="button" aria-pressed="false" data-tab="layers">Слои</button>
+          <button type="button" aria-pressed="false" data-tab="motion">Движение</button>
+          <button type="button" aria-pressed="false" data-tab="frame">Кадр</button>
+        </div>
+      </div>
+
+      <!-- Стиль -->
+      <div class="panel" data-panel="style">
+        <div class="card">
+          <div class="card-h"><h3>Пресеты</h3></div>
+          <div class="presets" id="presets"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Точки</h3><span class="spacer"></span>
+            <button class="ibtn" type="button" title="Сбросить секцию" aria-label="Сбросить секцию"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+            <button class="ibtn" type="button" title="Перемешать секцию" aria-label="Перемешать секцию"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg></button>
+          </div>
+          <div class="seg" data-seg aria-label="Форма точки">
+            <button type="button" aria-pressed="true" title="Круг"><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="currentColor"/></svg></button>
+            <button type="button" aria-pressed="false" title="Квадрат"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5" fill="currentColor"/></svg></button>
+            <button type="button" aria-pressed="false" title="Кольцо"><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button>
+            <button type="button" aria-pressed="false" title="Плюс"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2.6"/></svg></button>
+            <button type="button" aria-pressed="false" title="Шестиугольник"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 .8 12.4 4v6L7 13.2 1.6 10V4z" fill="currentColor"/></svg></button>
+            <button type="button" aria-pressed="false" title="Символы ASCII"><span style="font-weight:600;font-size:13px">#</span></button>
+          </div>
+          <div class="stack">
+            <span class="lbl">Раскладка</span>
+            <div class="seg sm" data-seg>
+              <button type="button" aria-pressed="true">Ряды</button>
+              <button type="button" aria-pressed="false">Соты</button>
+              <button type="button" aria-pressed="false">Сетка</button>
+              <button type="button" aria-pressed="false">Ровно</button>
+            </div>
+          </div>
+          <div class="row"><span class="lbl">Плотность</span><span class="val"></span><input class="fill" type="range" min="30" max="320" value="140" aria-label="Плотность"></div>
+          <div class="row"><span class="lbl">Размер точки</span><span class="val" data-u="%"></span><input class="fill" type="range" min="10" max="160" value="60" aria-label="Размер точки"></div>
+          <div class="row"><span class="lbl">Перспектива</span><span class="val" data-u="%"></span><input class="fill" type="range" min="0" max="100" value="60" aria-label="Перспектива"></div>
+          <div class="row"><span class="lbl">Разброс</span><span class="val" data-u="%"></span><input class="fill" type="range" min="0" max="100" value="0" aria-label="Разброс"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Цвет</h3><span class="spacer"></span>
+            <button class="ibtn" type="button" title="Сбросить секцию" aria-label="Сбросить секцию"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+          </div>
+          <div class="stack">
+            <div class="cline">
+              <div class="palette" id="palette"></div>
+              <button class="ibtn" type="button" id="palShuffle" title="Другая палитра" aria-label="Другая палитра" style="width:32px;height:32px;background:var(--field)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button>
+            </div>
+            <div class="row wide"><span class="lbl" id="palLabel">Цвет центра</span><label class="hex"><span class="sw" id="palSw"></span><input id="palHex" maxlength="7" aria-label="Цвет в HEX"></label></div>
+          </div>
+          <div class="stack">
+            <span class="lbl">Окраска</span>
+            <div class="seg sm" data-seg>
+              <button type="button" aria-pressed="false">Один цвет</button>
+              <button type="button" aria-pressed="true">К краю</button>
+              <button type="button" aria-pressed="false">Перелив</button>
+            </div>
+          </div>
+          <div class="row"><span class="lbl">Свечение</span><span class="val" data-u="%"></span><input class="fill" type="range" min="0" max="100" value="30" aria-label="Свечение"></div>
+          <div class="row wide"><span class="lbl">Атмосфера</span><label class="hex"><span class="sw" id="atmoSw"></span><input id="atmoHex" maxlength="7" aria-label="Цвет атмосферы в HEX"></label></div>
+        </div>
+      </div>
+
+      <!-- Слои -->
+      <div class="panel" data-panel="layers" hidden>
+        <div class="card">
+          <div class="card-h"><h3>Страны</h3><span class="count" id="ctCount">2</span></div>
+          <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="text" placeholder="Найти страну" aria-label="Найти страну"></label>
+          <div class="tags" id="tags">
+            <span class="tag"><span class="dot"></span>Нидерланды<button type="button" aria-label="Снять выделение"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg></button></span>
+            <span class="tag"><span class="dot"></span>Германия<button type="button" aria-label="Снять выделение"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg></button></span>
+          </div>
+          <div class="trow">
+            <div>Выделять кликом<small>Клик по шару добавляет или убирает страну</small></div>
+            <button class="tgl" type="button" aria-pressed="false" aria-label="Выделять кликом"></button>
+          </div>
+          <div class="row"><span class="lbl">Приглушить остальные</span><span class="val" data-u="%"></span><input class="fill" type="range" min="0" max="100" value="40" aria-label="Приглушить остальные"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Метки</h3><span class="count" id="mkCount"></span></div>
+          <div class="items" id="markers"></div>
+          <button class="addbtn" type="button" id="mkAddBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Добавить метку</button>
+          <div class="sheet" id="mkSheet" hidden>
+            <div class="seg sm" id="mkMode">
+              <button type="button" aria-pressed="true" data-mode="city">Город</button>
+              <button type="button" aria-pressed="false" data-mode="coords">Координаты</button>
+              <button type="button" aria-pressed="false" data-mode="center">Центр кадра</button>
+            </div>
+            <div class="stack" data-mode-panel="city">
+              <label class="field"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="text" placeholder="Найти город" value="То" aria-label="Найти город"></label>
+              <div class="suggest">
+                <button type="button" aria-pressed="true">Токио<small>35.68° с. ш., 139.69° в. д.</small></button>
+                <button type="button" aria-pressed="false">Торонто<small>43.65° с. ш., 79.38° з. д.</small></button>
+              </div>
+            </div>
+            <div class="stack" data-mode-panel="coords" hidden>
+              <label class="field"><input type="text" placeholder="Подпись" aria-label="Подпись"></label>
+              <div class="two">
+                <label class="field"><input type="text" inputmode="decimal" placeholder="55.75" aria-label="Широта"><i>шир.</i></label>
+                <label class="field"><input type="text" inputmode="decimal" placeholder="37.62" aria-label="Долгота"><i>долг.</i></label>
+              </div>
+            </div>
+            <div class="stack" data-mode-panel="center" hidden>
+              <label class="field"><input type="text" value="Метка 4" aria-label="Подпись"></label>
+              <p class="note">Поставится в точку под центром кадра: 30.0° с. ш., 15.0° в. д.</p>
+            </div>
+            <div class="sheet-actions">
+              <button class="pill sm" type="button" data-close="mkSheet">Отмена</button>
+              <button class="pill sm primary" type="button" id="mkConfirm">Добавить</button>
+            </div>
+          </div>
+          <div class="stack">
+            <span class="lbl">Размер меток</span>
+            <div class="seg sm" data-seg>
+              <button type="button" aria-pressed="false">S</button>
+              <button type="button" aria-pressed="true">M</button>
+              <button type="button" aria-pressed="false">L</button>
+              <button type="button" aria-pressed="false">XL</button>
+            </div>
+          </div>
+          <div class="stack">
+            <span class="lbl">Плашка</span>
+            <div class="seg sm" data-seg>
+              <button type="button" aria-pressed="true">Тёмное стекло</button>
+              <button type="button" aria-pressed="false">Светлое</button>
+              <button type="button" aria-pressed="false">Сплошная</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Маршруты</h3><span class="count" id="rtCount"></span></div>
+          <p class="note">Маршрут — дуга между двумя метками. Нажмите на название, чтобы поменять точку.</p>
+          <div class="stack" id="routes"></div>
+          <button class="addbtn" type="button" id="rtAddBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Добавить маршрут</button>
+          <div class="sheet" id="rtSheet" hidden>
+            <div class="route-build">
+              <div class="rb">Откуда<div class="dd" id="rtFrom"></div></div>
+              <button class="swap" type="button" id="rtSwap" title="Поменять местами" aria-label="Поменять местами"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg></button>
+              <div class="rb">Куда<div class="dd" id="rtTo"></div></div>
+            </div>
+            <p class="note">Нет нужной точки — сначала добавьте её в метки.</p>
+            <div class="sheet-actions">
+              <button class="pill sm" type="button" data-close="rtSheet">Отмена</button>
+              <button class="pill sm primary" type="button" id="rtConfirm">Добавить маршрут</button>
+            </div>
+          </div>
+          <button class="linkbtn" type="button" id="rtHub">Соединить все метки с первой</button>
+          <div class="row"><span class="lbl">Высота дуги</span><span class="val" data-u="%"></span><input class="fill" type="range" min="0" max="120" value="35" aria-label="Высота дуги"></div>
+          <div class="row"><span class="lbl">Скорость</span><span class="val" data-u="×" data-div="100"></span><input class="fill" type="range" min="0" max="150" value="25" aria-label="Скорость огонька"></div>
+        </div>
+      </div>
+
+      <!-- Движение -->
+      <div class="panel" data-panel="motion" hidden>
+        <div class="card">
+          <div class="card-h"><h3>Вращение</h3></div>
+          <div class="trow">
+            <div>Вращать сам<small>Останавливается, когда тянете шар мышью</small></div>
+            <button class="tgl" type="button" aria-pressed="true" aria-label="Вращать сам"></button>
+          </div>
+          <div class="row"><span class="lbl">Скорость</span><span class="val" data-u="°/с"></span><input class="fill" type="range" min="0" max="60" value="6" aria-label="Скорость вращения"></div>
+          <div class="seg sm" data-seg>
+            <button type="button" aria-pressed="true">С запада на восток</button>
+            <button type="button" aria-pressed="false">С востока на запад</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Эффект поверх</h3><span class="spacer"></span><button class="tgl" type="button" aria-pressed="true" aria-label="Эффект включён"></button></div>
+          <div class="tiles" id="tiles"></div>
+          <div class="row"><span class="lbl">Яркость</span><span class="val" data-u="%"></span><input class="fill" type="range" min="0" max="100" value="80" aria-label="Яркость эффекта"></div>
+          <div class="row"><span class="lbl">Ширина</span><span class="val" data-u="°"></span><input class="fill" type="range" min="1" max="60" value="24" aria-label="Ширина эффекта"></div>
+          <div class="row wide"><span class="lbl">Цвет эффекта</span><label class="hex"><span class="sw" style="background:#ffffff"></span><input value="#FFFFFF" maxlength="7" aria-label="Цвет эффекта в HEX"></label></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>День и ночь</h3><span class="spacer"></span><button class="tgl" type="button" aria-pressed="false" aria-label="Ночная сторона"></button></div>
+          <div class="stack">
+            <div class="row wide"><span class="lbl">Долгота солнца</span><label class="val"><input data-ruler-in="sun" inputmode="decimal" aria-label="Долгота солнца"><i>°</i></label></div>
+            <div class="ruler" data-ruler="sun" data-min="-180" data-max="180" data-v="60" data-step="5" data-major="30"><div class="ticks"></div><span class="center"></span></div>
+          </div>
+          <div class="stack">
+            <div class="row wide"><span class="lbl">Сезон</span><span class="chip dim" id="seasonOut">лето</span></div>
+            <div class="cslider" id="season" style="--g: linear-gradient(90deg, #5b8def, #c9c6c0, #e6c45a)" data-v="0.8"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Кадр -->
+      <div class="panel" data-panel="frame" hidden>
+        <div class="card">
+          <div class="card-h"><h3>Формат кадра</h3></div>
+          <div class="fmt" id="fmt"></div>
+          <div class="custom" id="custom" hidden>
+            <label class="val"><input id="cw" inputmode="numeric" value="1600" aria-label="Ширина"><i>px</i></label>
+            <span class="x">×</span>
+            <label class="val"><input id="ch" inputmode="numeric" value="900" aria-label="Высота"><i>px</i></label>
+            <button class="lock" type="button" id="lock" aria-pressed="false" title="Сохранять пропорции" aria-label="Сохранять пропорции"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 15 15 9"/><path d="M11 6.5 12.5 5a3.5 3.5 0 0 1 5 5L16 11.5M8 12.5 6.5 14a3.5 3.5 0 0 0 5 5l1.5-1.5"/></svg></button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Положение</h3></div>
+          <div class="row"><span class="lbl">Масштаб</span><span class="val" data-u="%"></span><input class="fill" type="range" min="20" max="400" value="82" aria-label="Масштаб"></div>
+          <div class="row"><span class="lbl">Сдвиг по X</span><span class="val" data-u="%"></span><input class="fill" type="range" min="-150" max="150" value="0" aria-label="Сдвиг по X"></div>
+          <div class="row"><span class="lbl">Сдвиг по Y</span><span class="val" data-u="%"></span><input class="fill" type="range" min="-150" max="150" value="0" aria-label="Сдвиг по Y"></div>
+          <div class="stack">
+            <div class="row wide"><span class="lbl">Наклон оси</span><label class="val"><input data-ruler-in="roll" inputmode="decimal" aria-label="Наклон оси"><i>°</i></label></div>
+            <div class="ruler" data-ruler="roll" data-min="-90" data-max="90" data-v="0" data-step="2" data-major="10"><div class="ticks"></div><span class="center"></span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Фон</h3></div>
+          <div class="seg sm" data-seg>
+            <button type="button" aria-pressed="true">Сплошной</button>
+            <button type="button" aria-pressed="false">Градиент</button>
+            <button type="button" aria-pressed="false">Свечение</button>
+            <button type="button" aria-pressed="false">Нет</button>
+          </div>
+          <div class="row wide"><span class="lbl">Цвет фона</span><label class="hex"><span class="sw" style="background:#000000"></span><input value="#000000" maxlength="7" aria-label="Цвет фона в HEX"></label></div>
+          <div class="row"><span class="lbl">Виньетка</span><span class="val" data-u="%"></span><input class="fill" type="range" min="0" max="100" value="25" aria-label="Виньетка"></div>
+          <div class="row"><span class="lbl">Зерно</span><span class="val" data-u="%"></span><input class="fill" type="range" min="0" max="30" value="4" aria-label="Зерно"></div>
+        </div>
+      </div>
+    </aside>
+  </main>
+</div>
+</div>
+
+<div class="preview" id="preview" role="dialog" aria-label="Предпросмотр" hidden>
+  <div class="preview-bar">
+    <span class="title">Предпросмотр</span>
+    <span class="chip dim num" id="previewChip"><b>1:1</b>1080 × 1080</span>
+    <span class="spacer"></span>
+    <span class="hk"><span class="key">Esc</span>закрыть</span>
+    <button class="pill" type="button" id="previewClose">Закрыть</button>
+  </div>
+  <div class="preview-stage" id="previewStage"><div class="preview-frame" id="previewFrame"><canvas id="previewCanvas"></canvas></div></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span id="toastText">Настройки сброшены</span>
+  <button class="pill" type="button" id="toastUndo">Отменить</button>
+</div>
+
+<div class="picker" id="picker" role="dialog" aria-label="Выбор цвета" hidden>
+  <div class="sv" id="sv"><span class="knob"></span></div>
+  <div class="hue" id="hue"><span class="knob"></span></div>
+  <label class="hex"><span class="sw" id="pkSw"></span><input id="pkHex" maxlength="7" aria-label="Цвет в HEX"></label>
+  <p class="cap">Цвета палитры</p>
+  <div class="swatches" id="pkSwatches"></div>
+  <p class="cap">Недавно использованные</p>
+  <div class="swatches" id="pkRecent"></div>
+</div>
+
+<script>
+// Mockup only: controls move and switch, the globe is a light 2D sketch, not the real engine.
+(() => {
+'use strict';
+let pal = 0, palPick = 0, atmo = '#7c5cff';
+const ICON_PAUSE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg>';
+const ICON_PLAY = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.5-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z"/></svg>';
+const X_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>';
+const PIN_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
+const AIM_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+// ---------- generic controls ----------
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-seg] > button');
+  if (!b || b.disabled) return;
+  b.parentElement.querySelectorAll(':scope > button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  pushHistory();
+});
+function stepsPick(st, b) {
+  st.querySelectorAll('button').forEach(x => { const on = x === b; x.setAttribute('aria-pressed', String(on)); x.textContent = on ? x.getAttribute('aria-label') : ''; });
+}
+document.querySelectorAll('.steps').forEach(st => {
+  st.querySelectorAll('button').forEach(x => { if (x.getAttribute('aria-pressed') === 'true') x.textContent = x.getAttribute('aria-label'); });
+  st.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; stepsPick(st, b); pushHistory(); });
+});
+document.querySelectorAll('.tgl').forEach(t => t.addEventListener('click', () => { t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true')); pushHistory(); }));
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => { document.getElementById(b.dataset.close).hidden = true; }));
+
+// slider rows: the number next to each slider is an editable field
+document.querySelectorAll('.row').forEach(row => {
+  const range = row.querySelector('input.fill'), val = row.querySelector('.val');
+  if (!range || !val) return;
+  const div = +(val.dataset.div || 1), dec = div > 1 ? 2 : 0;
+  val.innerHTML = `<input inputmode="decimal" aria-label="${range.getAttribute('aria-label')}, значение">${val.dataset.u ? `<i>${val.dataset.u}</i>` : ''}`;
+  const field = val.querySelector('input');
+  const paint = () => {
+    const p = (range.value - range.min) / (range.max - range.min) * 100;
+    range.style.setProperty('--p', `calc(${p}% + ${7 - p * 0.14}px)`);
+  };
+  const toField = () => { field.value = (range.value / div).toFixed(dec); paint(); };
+  range.addEventListener('input', toField);
+  range.addEventListener('change', pushHistory);
+  const commit = () => {
+    const n = parseFloat(field.value.replace(',', '.'));
+    if (!Number.isNaN(n)) range.value = Math.max(+range.min, Math.min(+range.max, Math.round(n * div)));
+    toField(); pushHistory();
+  };
+  field.addEventListener('change', commit);
+  field.addEventListener('keydown', e => {
+    if (e.key === 'Enter') field.blur();
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); range.value = +range.value + (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 1); toField(); }
+  });
+  val.addEventListener('click', () => field.focus());
+  toField();
+});
+
+// tabs
+const tabs = document.getElementById('tabs');
+tabs.addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]');
+  if (!b) return;
+  tabs.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  document.querySelectorAll('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== b.dataset.tab; });
+});
+
+// ---------- colors ----------
+const hexOk = h => /^#[0-9a-f]{6}$/i.test(h);
+// every HEX field keeps its swatch in sync
+document.querySelectorAll('.hex input').forEach(inp => inp.addEventListener('change', () => {
+  let v = inp.value.trim(); if (!v.startsWith('#')) v = '#' + v;
+  if (!hexOk(v)) { inp.value = inp.dataset.last || inp.value; return; }
+  inp.value = v.toUpperCase(); inp.dataset.last = inp.value;
+  inp.parentElement.querySelector('.sw').style.background = v;
+  if (inp !== pkTarget && !picker.contains(inp)) addRecent(v);   // typed by hand; picker changes are recorded on close
+  pushHistory();
+}));
+
+const atmoHex = document.getElementById('atmoHex');
+function setAtmo(hex) {
+  atmo = hex; atmoHex.value = hex.toUpperCase(); atmoHex.dataset.last = atmoHex.value;
+  document.getElementById('atmoSw').style.background = hex;
+}
+atmoHex.addEventListener('change', () => { if (hexOk(atmoHex.value)) setAtmo(atmoHex.value); });
+setAtmo(atmo);
+function moveKnob(cs, v) {
+  v = Math.max(0, Math.min(1, v)); cs.dataset.v = v;
+  const k = cs.querySelector('.knob'); k.style.left = `calc(16px + ${v} * (100% - 32px))`;
+  return v;
+}
+document.querySelectorAll('.cslider').forEach(cs => {
+  const knob = document.createElement('span'); knob.className = 'knob'; cs.append(knob);
+  const set = v => {
+    v = moveKnob(cs, v);
+    if (cs.id === 'season') document.getElementById('seasonOut').textContent = v < 0.33 ? 'зима' : v < 0.66 ? 'межсезонье' : 'лето';
+  };
+  set(+cs.dataset.v);
+  const move = e => { const r = cs.getBoundingClientRect(); set((e.clientX - r.left - 16) / (r.width - 32)); };
+  cs.addEventListener('pointerdown', e => { cs.setPointerCapture(e.pointerId); move(e); cs.onpointermove = move; });
+  cs.addEventListener('pointerup', () => { cs.onpointermove = null; pushHistory(); });
+});
+
+// rulers with an editable degree field
+document.querySelectorAll('[data-ruler]').forEach(rl => {
+  const ticks = rl.querySelector('.ticks'), field = document.querySelector(`[data-ruler-in="${rl.dataset.ruler}"]`);
+  const min = +rl.dataset.min, max = +rl.dataset.max, step = +rl.dataset.step, major = +rl.dataset.major, px = 9;
+  let v = +rl.dataset.v;
+  const render = () => {
+    const w = rl.clientWidth || 340, c = w / 2;
+    let html = '';
+    for (let t = Math.ceil((v - c / px * step) / step) * step; t <= v + c / px * step; t += step) {
+      if (t < min || t > max) continue;
+      html += `<span class="tk${t % major === 0 ? ' maj' : ''}${t === 0 ? ' zero' : ''}" style="left:${c + (t - v) / step * px}px"></span>`;
+    }
+    ticks.innerHTML = html;
+    if (document.activeElement !== field) field.value = Math.round(v);
+  };
+  let sx = 0, sv = 0;
+  rl.addEventListener('pointerdown', e => { rl.setPointerCapture(e.pointerId); sx = e.clientX; sv = v; rl.onpointermove = m => { v = Math.max(min, Math.min(max, sv - (m.clientX - sx) / px * step)); render(); }; });
+  rl.addEventListener('pointerup', () => { rl.onpointermove = null; pushHistory(); });
+  field.addEventListener('change', () => { const n = parseFloat(field.value.replace(',', '.')); if (!Number.isNaN(n)) v = Math.max(min, Math.min(max, n)); field.blur(); render(); pushHistory(); });
+  field.addEventListener('keydown', e => { if (e.key === 'Enter') field.blur(); });
+  new ResizeObserver(render).observe(rl);
+  render();
+});
+
+// undo / redo (mockup: counts changes only)
+let hist = 0, future = 0;
+const undo = document.getElementById('undo'), redo = document.getElementById('redo');
+function pushHistory() { hist++; future = 0; syncHist(); }
+function syncHist() { undo.disabled = hist === 0; redo.disabled = future === 0; }
+undo.addEventListener('click', () => { if (hist) { hist--; future++; syncHist(); } });
+redo.addEventListener('click', () => { if (future) { future--; hist++; syncHist(); } });
+syncHist();
+
+// ---------- frame format ----------
+const FORMATS = [
+  ['1:1', 1080, 1080, 22, 22], ['4:5', 1080, 1350, 18, 22], ['3:4', 1080, 1440, 17, 22],
+  ['16:9', 1920, 1080, 30, 17], ['9:16', 1080, 1920, 13, 22], ['custom', 0, 0, 0, 0]
+];
+let frame = { ratio: '1:1', w: 1080, h: 1080 };
+const fmtEl = document.getElementById('fmt'), customEl = document.getElementById('custom');
+fmtEl.innerHTML = FORMATS.map(([r, w, h, bw, bh], i) => r === 'custom'
+  ? `<button type="button" aria-pressed="false" data-i="${i}"><span class="box" style="width:24px;border-style:dashed"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><b>Свой</b><small>ширина × высота</small></button>`
+  : `<button type="button" aria-pressed="${i === 0}" data-i="${i}"><span class="box" style="width:${bw}px;height:${bh}px"></span><b>${r}</b><small>${w} × ${h}</small></button>`).join('');
+fmtEl.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  fmtEl.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  const f = FORMATS[+b.dataset.i];
+  customEl.hidden = f[0] !== 'custom';
+  frame = f[0] === 'custom' ? { ratio: 'свой', w: +document.getElementById('cw').value, h: +document.getElementById('ch').value } : { ratio: f[0], w: f[1], h: f[2] };
+  syncFrame(); pushHistory();
+});
+['cw', 'ch'].forEach(id => document.getElementById(id).addEventListener('change', e => {
+  const n = Math.max(64, Math.min(8192, parseInt(e.target.value, 10) || 0)); e.target.value = n;
+  if (document.getElementById('lock').getAttribute('aria-pressed') === 'true') {
+    const other = document.getElementById(id === 'cw' ? 'ch' : 'cw');
+    other.value = Math.round(id === 'cw' ? n * frame.h / frame.w : n * frame.w / frame.h);
+  }
+  frame = { ratio: 'свой', w: +document.getElementById('cw').value, h: +document.getElementById('ch').value };
+  syncFrame(); pushHistory();
+}));
+document.getElementById('lock').addEventListener('click', e => { const b = e.currentTarget; b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); });
+function syncFrame() {
+  const chip = `<b>${frame.ratio === 'свой' ? 'Свой' : frame.ratio}</b>${frame.w} × ${frame.h}`;
+  document.getElementById('frameChip').innerHTML = chip;
+  document.getElementById('previewChip').innerHTML = chip;
+  updateExport();
+}
+
+// ---------- export popover ----------
+const pop = document.getElementById('pop'), exportBtn = document.getElementById('exportBtn');
+exportBtn.addEventListener('click', () => { pop.hidden = !pop.hidden; exportBtn.setAttribute('aria-expanded', String(!pop.hidden)); });
+document.addEventListener('pointerdown', e => {
+  if (!pop.hidden && !pop.contains(e.target) && !exportBtn.contains(e.target)) { pop.hidden = true; exportBtn.setAttribute('aria-expanded', 'false'); }
+});
+document.getElementById('expKind').addEventListener('click', e => {
+  const b = e.target.closest('[data-kind]');
+  if (!b) return;
+  document.querySelectorAll('#expKind button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  document.querySelectorAll('[data-kind-panel]').forEach(p => { p.hidden = p.dataset.kindPanel !== b.dataset.kind; });
+  document.getElementById('outSize').hidden = b.dataset.kind !== 'image';
+});
+// quality segments: each shows the long side it will produce
+document.getElementById('scale').addEventListener('click', () => setTimeout(updateExport));
+function updateExport() {
+  const k = +document.querySelector('#scale [aria-pressed="true"]').dataset.k;
+  document.getElementById('outSize').textContent = `${frame.w * k} × ${frame.h * k} px`;
+  document.querySelectorAll('#scale button').forEach(b => { b.querySelector('small').textContent = Math.max(frame.w, frame.h) * b.dataset.k; });
+}
+const CODE = {
+  react: `<span class="k">import</span> { Globe } <span class="k">from</span> <span class="s">'@tools/globe'</span>;
+
+<span class="k">export default function</span> Hero() {
+  <span class="k">return</span> (
+    &lt;Globe
+      preset=<span class="s">"amethyst"</span>
+      effect=<span class="s">"radar"</span>
+      countries={[<span class="s">'NL'</span>, <span class="s">'DE'</span>]}
+      markers={[{ label: <span class="s">'Нидерланды'</span>, lat: 52.37, lon: 4.9 }]}
+      autoRotate
+      style={{ width: 640, height: 640 }}
+    /&gt;
+  );
+}`,
+  wc: `<span class="c">&lt;!-- один раз на странице --&gt;</span>
+&lt;script type=<span class="s">"module"</span> src=<span class="s">"globe.js"</span>&gt;&lt;/script&gt;
+
+&lt;globe-view
+  preset=<span class="s">"amethyst"</span>
+  effect=<span class="s">"radar"</span>
+  countries=<span class="s">"NL,DE"</span>
+  auto-rotate
+  style=<span class="s">"width:640px;height:640px"</span>&gt;
+&lt;/globe-view&gt;`,
+  html: `<span class="c">&lt;!-- файл globe-embed.html положите рядом со страницей --&gt;</span>
+&lt;iframe
+  src=<span class="s">"globe-embed.html"</span>
+  width=<span class="s">"640"</span> height=<span class="s">"640"</span>
+  style=<span class="s">"border:0;background:transparent"</span>
+  loading=<span class="s">"lazy"</span> title=<span class="s">"Глобус"</span>&gt;
+&lt;/iframe&gt;`
+};
+const codeBox = document.getElementById('codeBox');
+codeBox.innerHTML = CODE.react;
+document.getElementById('codeKind').addEventListener('click', e => { const b = e.target.closest('[data-code]'); if (b) codeBox.innerHTML = CODE[b.dataset.code]; });
+
+// ---------- markers and routes ----------
+let markers = [
+  { id: 1, label: 'Нидерланды', lat: 52.37, lon: 4.9 },
+  { id: 2, label: 'Нью-Йорк', lat: 40.71, lon: -74.01 },
+  { id: 3, label: 'Дубай', lat: 25.2, lon: 55.27 }
+];
+let routes = [{ a: 1, b: 2 }, { a: 1, b: 3 }], nextId = 4;
+const fmtLL = (lat, lon) => `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? 'с. ш.' : 'ю. ш.'}, ${Math.abs(lon).toFixed(2)}° ${lon >= 0 ? 'в. д.' : 'з. д.'}`;
+// custom dropdown: a button with the current marker and a menu of all markers
+const CHEVRON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+const CHECK = '<svg class="mk" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+function ddHTML(value, label) {
+  const m = markers.find(x => x.id === value);
+  return `<button class="dd-btn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="${label}"><span>${m ? esc(m.label) : 'Выберите метку'}</span>${CHEVRON}</button>`;
+}
+function setDD(el, value, label) { el.dataset.value = value || ''; el.innerHTML = ddHTML(value, label || el.dataset.label || ''); }
+function closeDDs(except) {
+  document.querySelectorAll('.dd.open').forEach(d => {
+    if (d === except) return;
+    d.classList.remove('open'); d.querySelector('.dd-btn').setAttribute('aria-expanded', 'false');
+    const m = d.querySelector('.dd-menu'); if (m) m.remove();
+  });
+}
+function openDD(dd) {
+  closeDDs(dd);
+  if (dd.classList.contains('open')) { closeDDs(); return; }
+  dd.classList.add('open'); dd.querySelector('.dd-btn').setAttribute('aria-expanded', 'true');
+  const menu = document.createElement('div');
+  menu.className = 'dd-menu'; menu.setAttribute('role', 'listbox');
+  menu.innerHTML = markers.map(m => `<button type="button" role="option" data-v="${m.id}" aria-selected="${String(m.id) === dd.dataset.value}">${esc(m.label)}${CHECK}</button>`).join('');
+  dd.append(menu);
+  const cur = menu.querySelector('[aria-selected="true"]') || menu.firstElementChild;
+  if (cur) { cur.classList.add('hl'); cur.focus(); }
+}
+document.addEventListener('click', e => {
+  const opt = e.target.closest('.dd-menu button');
+  if (opt) {
+    const dd = opt.closest('.dd'), v = +opt.dataset.v;
+    setDD(dd, v);
+    if (dd.dataset.ri !== undefined) { routes[+dd.dataset.ri][dd.dataset.end] = v; pushHistory(); }
+    closeDDs(); dd.querySelector('.dd-btn').focus({ preventScroll: true });
+    return;
+  }
+  const btn = e.target.closest('.dd-btn');
+  if (btn) { openDD(btn.closest('.dd')); return; }
+  closeDDs();
+});
+document.addEventListener('keydown', e => {
+  const menu = e.target.closest && e.target.closest('.dd-menu');
+  if (e.key === 'Escape') { closeDDs(); return; }
+  if (!menu || !['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  e.preventDefault();
+  const items = [...menu.children], i = items.indexOf(document.activeElement);
+  const next = items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+  items.forEach(x => x.classList.toggle('hl', x === next)); next.focus();
+});
+function renderMarkers() {
+  document.getElementById('mkCount').textContent = markers.length;
+  document.getElementById('markers').innerHTML = markers.map(m => `
+    <div class="item">
+      <span class="pin">${PIN_ICON}</span>
+      <div class="txt"><span class="t">${esc(m.label)}</span><span class="c">${fmtLL(m.lat, m.lon)}</span></div>
+      <div class="acts">
+        <button class="ibtn" type="button" title="Повернуть глобус к метке" aria-label="Повернуть к метке">${AIM_ICON}</button>
+        <button class="ibtn" type="button" title="Удалить метку" aria-label="Удалить метку" data-mdel="${m.id}">${X_ICON}</button>
+      </div>
+    </div>`).join('');
+  renderRoutes();
+}
+function renderRoutes() {
+  document.getElementById('rtCount').textContent = routes.length;
+  document.getElementById('routes').innerHTML = routes.map((r, i) => `
+    <div class="route">
+      <div class="dd" data-ri="${i}" data-end="a" data-value="${r.a}" data-label="Откуда">${ddHTML(r.a, 'Откуда')}</div>
+      <span class="arrow">→</span>
+      <div class="dd" data-ri="${i}" data-end="b" data-value="${r.b}" data-label="Куда">${ddHTML(r.b, 'Куда')}</div>
+      <button class="ibtn" type="button" data-rdel="${i}" title="Удалить маршрут" aria-label="Удалить маршрут" style="color:var(--muted)">${X_ICON}</button>
+    </div>`).join('') || '<p class="note">Пока маршрутов нет.</p>';
+  setDD(document.getElementById('rtFrom'), markers[0] && markers[0].id, 'Откуда');
+  setDD(document.getElementById('rtTo'), markers.length > 1 && markers[markers.length - 1].id, 'Куда');
+}
+document.getElementById('markers').addEventListener('click', e => {
+  const d = e.target.closest('[data-mdel]');
+  if (!d) return;
+  const id = +d.dataset.mdel;
+  markers = markers.filter(m => m.id !== id); routes = routes.filter(r => r.a !== id && r.b !== id);
+  renderMarkers(); pushHistory();
+});
+document.getElementById('routes').addEventListener('click', e => {
+  const d = e.target.closest('[data-rdel]');
+  if (d) { routes.splice(+d.dataset.rdel, 1); renderRoutes(); pushHistory(); }
+});
+document.getElementById('mkAddBtn').addEventListener('click', () => { const s = document.getElementById('mkSheet'); s.hidden = !s.hidden; });
+document.getElementById('rtAddBtn').addEventListener('click', () => { const s = document.getElementById('rtSheet'); s.hidden = !s.hidden; });
+document.getElementById('mkMode').addEventListener('click', e => {
+  const b = e.target.closest('[data-mode]');
+  if (!b) return;
+  document.querySelectorAll('#mkMode button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  document.querySelectorAll('[data-mode-panel]').forEach(p => { p.hidden = p.dataset.modePanel !== b.dataset.mode; });
+});
+document.querySelector('.suggest').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) document.querySelectorAll('.suggest button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+});
+document.getElementById('mkConfirm').addEventListener('click', () => {
+  const mode = document.querySelector('#mkMode [aria-pressed="true"]').dataset.mode;
+  const pick = { label: 'Токио', lat: 35.68, lon: 139.69 };
+  if (mode === 'city') { const b = document.querySelector('.suggest [aria-pressed="true"]'); if (b && b.firstChild.textContent === 'Торонто') Object.assign(pick, { label: 'Торонто', lat: 43.65, lon: -79.38 }); }
+  if (mode === 'center') Object.assign(pick, { label: document.querySelector('[data-mode-panel="center"] input').value || 'Метка', lat: 30, lon: 15 });
+  if (mode === 'coords') {
+    const [l, a, o] = document.querySelectorAll('[data-mode-panel="coords"] input');
+    Object.assign(pick, { label: l.value || 'Метка', lat: parseFloat(a.value) || 55.75, lon: parseFloat(o.value) || 37.62 });
+  }
+  markers.push({ id: nextId++, ...pick });
+  document.getElementById('mkSheet').hidden = true;
+  renderMarkers(); pushHistory();
+});
+document.getElementById('rtSwap').addEventListener('click', () => {
+  const f = document.getElementById('rtFrom'), t = document.getElementById('rtTo'), v = +f.dataset.value;
+  setDD(f, +t.dataset.value, 'Откуда'); setDD(t, v, 'Куда');
+});
+document.getElementById('rtConfirm').addEventListener('click', () => {
+  const a = +document.getElementById('rtFrom').dataset.value, b = +document.getElementById('rtTo').dataset.value;
+  if (a && b && a !== b) { routes.push({ a, b }); document.getElementById('rtSheet').hidden = true; renderRoutes(); pushHistory(); }
+});
+document.getElementById('rtHub').addEventListener('click', () => {
+  markers.slice(1).forEach(m => { if (!routes.some(r => (r.a === markers[0].id && r.b === m.id) || (r.b === markers[0].id && r.a === m.id))) routes.push({ a: markers[0].id, b: m.id }); });
+  renderRoutes(); pushHistory();
+});
+renderMarkers();
+
+// ---------- palettes and presets ----------
+const PALETTES = [
+  ['#f4f0ff', '#b9a8ff', '#7c5cff', '#2a1a66'],
+  ['#e9fff1', '#7dffb0', '#2ee66b', '#0f6b33'],
+  ['#fff4dc', '#ffc061', '#ff7a3d', '#6e1d2b'],
+  ['#ecf7ff', '#8fd3ff', '#3d8af7', '#16307f']
+];
+const PAL_ROLE = ['Цвет центра', 'Цвет середины', 'Цвет края', 'Цвет тени'];
+function paintPalette() {
+  document.getElementById('palette').innerHTML = PALETTES[pal].map((c, i) => `<button type="button" style="background:${c}" aria-pressed="${i === palPick}" data-pi="${i}" aria-label="Цвет ${i + 1}"></button>`).join('');
+  const c = PALETTES[pal][palPick];
+  document.getElementById('palLabel').textContent = PAL_ROLE[palPick];
+  document.getElementById('palSw').style.background = c;
+  const hx = document.getElementById('palHex'); hx.value = c.toUpperCase(); hx.dataset.last = hx.value;
+}
+document.getElementById('palette').addEventListener('click', e => { const b = e.target.closest('[data-pi]'); if (b) { palPick = +b.dataset.pi; paintPalette(); } });
+document.getElementById('palHex').addEventListener('change', e => { if (hexOk(e.target.value)) { PALETTES[pal][palPick] = e.target.value.toLowerCase(); paintPalette(); } });
+paintPalette();
+document.getElementById('palShuffle').addEventListener('click', () => { pal = (pal + 1) % PALETTES.length; paintPalette(); pushHistory(); });
+document.getElementById('shuffle').addEventListener('click', () => { pal = (Math.random() * PALETTES.length) | 0; paintPalette(); yaw = Math.random() * 360; pushHistory(); });
+
+const PRESETS = [['Аметист', 0], ['Радар', 1], ['Закат', 2], ['Лёд', 3], ['Чертёж', 3], ['Бумага', -1]];
+const presetsEl = document.getElementById('presets');
+presetsEl.innerHTML = PRESETS.map(([n], i) => `<button class="preset" type="button" aria-pressed="${i === 0}" data-i="${i}"><canvas width="160" height="160"></canvas>${n}</button>`).join('');
+presetsEl.addEventListener('click', e => {
+  const b = e.target.closest('.preset');
+  if (!b) return;
+  presetsEl.querySelectorAll('.preset').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  const p = PRESETS[+b.dataset.i][1];
+  if (p >= 0) { pal = p; paintPalette(); }
+  pushHistory();
+});
+
+// effect tiles and dock menu
+const FX = [
+  ['off', 'Нет', '<circle cx="12" cy="12" r="8"/><path d="m6.5 17.5 11-11"/>'],
+  ['random', 'Вспышки', '<circle cx="7" cy="8" r="2"/><circle cx="16" cy="15" r="3"/><circle cx="17" cy="6" r="1"/>'],
+  ['center', 'Сонар', '<circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="10"/>'],
+  ['markers', 'От меток', '<path d="M12 3a5 5 0 0 0-5 5c0 4 5 10 5 10s5-6 5-10a5 5 0 0 0-5-5z"/><path d="M5 21h14"/>'],
+  ['radar', 'Радар', '<circle cx="12" cy="12" r="9"/><path d="M12 12 18 6"/>'],
+  ['scan', 'Сканер', '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 12h16"/>'],
+  ['meridian', 'Волна', '<circle cx="12" cy="12" r="9"/><path d="M12 3c3 3 3 15 0 18"/>'],
+  ['breath', 'Дыхание', '<circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 3"/>']
+];
+let fx = 'radar';
+const icon = d => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${d}</svg>`;
+function renderFx() {
+  document.getElementById('tiles').innerHTML = FX.map(([k, n, d]) => `<button class="tile" type="button" data-fx="${k}" aria-pressed="${fx === k}">${icon(d)}${n}</button>`).join('');
+  document.getElementById('fxMenu').innerHTML = FX.map(([k, n, d]) => `<button type="button" role="menuitemradio" data-fx="${k}" aria-checked="${fx === k}">${icon(d)}${n}<svg class="mk" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button>`).join('');
+  document.getElementById('fxName').textContent = fx === 'off' ? 'Без эффекта' : FX.find(f => f[0] === fx)[1];
+}
+renderFx();
+const fxMenu = document.getElementById('fxMenu'), fxBtn = document.getElementById('fxBtn');
+fxBtn.addEventListener('click', () => { fxMenu.hidden = !fxMenu.hidden; fxBtn.setAttribute('aria-expanded', String(!fxMenu.hidden)); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-fx]');
+  if (b) { fx = b.dataset.fx; renderFx(); fxMenu.hidden = true; fxBtn.setAttribute('aria-expanded', 'false'); pushHistory(); return; }
+  if (!fxMenu.hidden && !fxBtn.contains(e.target)) { fxMenu.hidden = true; fxBtn.setAttribute('aria-expanded', 'false'); }
+});
+
+// ---------- color picker: opens from the swatch inside any HEX field ----------
+const picker = document.getElementById('picker'), sv = document.getElementById('sv'), hue = document.getElementById('hue'), pkHex = document.getElementById('pkHex');
+let pkTarget = null, pk = { h: 260, s: 0.6, v: 1 }, pkStart = '';
+// recently used colors: newest first, up to one row; seeded for the mockup
+let recent = ['#FF4747', '#3DD68C', '#4BA3FF', '#F5A524'];
+function addRecent(hex) {
+  if (!hexOk(hex)) return;
+  hex = hex.toUpperCase();
+  recent = [hex, ...recent.filter(c => c !== hex)].slice(0, 8);
+}
+function closePicker() {
+  if (picker.hidden) return;
+  if (pkTarget && pkTarget.value.toUpperCase() !== pkStart) addRecent(pkTarget.value);
+  picker.hidden = true; pkTarget = null;
+}
+function hsv2hex(h, s, v) {
+  const f = n => { const k = (n + h / 60) % 6; return Math.round(255 * (v - v * s * Math.max(0, Math.min(k, 4 - k, 1)))).toString(16).padStart(2, '0'); };
+  return '#' + f(5) + f(3) + f(1);
+}
+function hex2hsv(hex) {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s: mx ? d / mx : 0, v: mx };
+}
+function paintPicker(fromField, apply = true) {
+  const hex = hsv2hex(pk.h, pk.s, pk.v);
+  sv.style.setProperty('--h', pk.h);
+  const k = sv.querySelector('.knob');
+  k.style.left = pk.s * 100 + '%'; k.style.top = (1 - pk.v) * 100 + '%'; k.style.background = hex;
+  hue.querySelector('.knob').style.left = pk.h / 360 * 100 + '%';
+  hue.querySelector('.knob').style.background = hsv2hex(pk.h, 1, 1);
+  document.getElementById('pkSw').style.background = hex;
+  if (!fromField) pkHex.value = hex.toUpperCase();
+  if (pkTarget && apply) { pkTarget.value = hex.toUpperCase(); pkTarget.dispatchEvent(new Event('change')); }
+}
+function openPicker(sw) {
+  closePicker();
+  const input = sw.parentElement.querySelector('input');
+  pkTarget = input;
+  pk = hexOk(input.value) ? hex2hsv(input.value) : { h: 260, s: 0.6, v: 1 };
+  const chipHTML = c => `<button type="button" style="background:${c}" data-c="${c}" aria-label="${c}"></button>`;
+  document.getElementById('pkSwatches').innerHTML = [...PALETTES[pal], '#ffffff', '#8e8e93', '#000000', '#ff4fd8'].map(chipHTML).join('');
+  document.getElementById('pkRecent').innerHTML = recent.map(chipHTML).join('');
+  pkStart = input.value.toUpperCase();
+  picker.hidden = false;
+  const r = sw.getBoundingClientRect(), ph = picker.offsetHeight;
+  picker.style.left = Math.min(r.left - 6, innerWidth - 276) + 'px';
+  picker.style.top = (r.bottom + 8 + ph > innerHeight ? r.top - ph - 8 : r.bottom + 8) + 'px';
+  paintPicker(false, false);
+  pkHex.value = input.value.toUpperCase();
+}
+document.addEventListener('click', e => {
+  const sw = e.target.closest('.hex .sw');
+  if (sw && !picker.contains(sw)) { e.preventDefault(); openPicker(sw); }
+});
+const drag = (el, fn) => el.addEventListener('pointerdown', e => {
+  el.setPointerCapture(e.pointerId);
+  const move = m => { const r = el.getBoundingClientRect(); fn(Math.max(0, Math.min(1, (m.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (m.clientY - r.top) / r.height))); };
+  move(e); el.onpointermove = move;
+  el.onpointerup = () => { el.onpointermove = null; pushHistory(); };
+});
+drag(sv, (x, y) => { pk.s = x; pk.v = 1 - y; paintPicker(false); });
+drag(hue, x => { pk.h = x * 360; paintPicker(false); });
+pkHex.addEventListener('change', () => { let v = pkHex.value.trim(); if (!v.startsWith('#')) v = '#' + v; if (hexOk(v)) { pk = hex2hsv(v); paintPicker(false); } });
+['pkSwatches', 'pkRecent'].forEach(id => document.getElementById(id).addEventListener('click', e => {
+  const b = e.target.closest('[data-c]'); if (b) { pk = hex2hsv(b.dataset.c); paintPicker(false); }
+}));
+document.addEventListener('pointerdown', e => {
+  if (!picker.hidden && !picker.contains(e.target) && !e.target.closest('.hex .sw')) closePicker();
+});
+
+// ---------- preview: the frame alone, without the interface ----------
+const preview = document.getElementById('preview'), pvCanvas = document.getElementById('previewCanvas'), pvCtx = pvCanvas.getContext('2d');
+const pvFrame = document.getElementById('previewFrame'), pvStage = document.getElementById('previewStage');
+function fitPreview() {
+  if (preview.hidden) return;
+  const aw = pvStage.clientWidth - 48, ah = pvStage.clientHeight - 24, ar = frame.w / frame.h;
+  let w = aw, h = w / ar;
+  if (h > ah) { h = ah; w = h * ar; }
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  pvFrame.style.width = pvCanvas.style.width = Math.floor(w) + 'px';
+  pvFrame.style.height = pvCanvas.style.height = Math.floor(h) + 'px';
+  pvCanvas.width = Math.round(w * dpr); pvCanvas.height = Math.round(h * dpr);
+}
+function closePreview() { preview.hidden = true; }
+document.getElementById('previewBtn').addEventListener('click', () => { preview.hidden = false; fitPreview(); });
+document.getElementById('previewClose').addEventListener('click', closePreview);
+window.addEventListener('resize', fitPreview);
+window.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!picker.hidden) { closePicker(); return; }
+  if (!preview.hidden) closePreview();
+});
+
+// ---------- reset: style only or everything, always undoable ----------
+const inspector = document.querySelector('.inspector'), tagsEl = document.getElementById('tags');
+const DEFAULT_PALETTES = JSON.parse(JSON.stringify(PALETTES)), DEFAULT_ATMO = atmo;
+// remember the starting value of every control so any part can go back to it
+inspector.querySelectorAll('input.fill').forEach(r => { r.dataset.def = r.value; });
+inspector.querySelectorAll('[aria-pressed]').forEach(b => { b.dataset.defp = b.getAttribute('aria-pressed'); });
+const clone = o => JSON.parse(JSON.stringify(o));
+const liveLists = '#tiles, #palette, #markers, #routes';
+function pressables(root) { return [...root.querySelectorAll('[aria-pressed]')].filter(b => !b.closest(liveLists)); }
+function restoreControls(root) {
+  root.querySelectorAll('input.fill').forEach(r => { r.value = r.dataset.def; r.dispatchEvent(new Event('input')); });
+  pressables(root).forEach(b => { if (b.dataset.defp) b.setAttribute('aria-pressed', b.dataset.defp); });
+}
+function syncFormatFromDOM() {
+  const b = fmtEl.querySelector('[aria-pressed="true"]'), f = FORMATS[+b.dataset.i];
+  customEl.hidden = f[0] !== 'custom';
+  frame = f[0] === 'custom' ? { ratio: 'свой', w: +document.getElementById('cw').value, h: +document.getElementById('ch').value } : { ratio: f[0], w: f[1], h: f[2] };
+  syncFrame();
+}
+function snapshot() {
+  return {
+    ranges: [...inspector.querySelectorAll('input.fill')].map(r => r.value),
+    pressed: pressables(inspector).map(b => b.getAttribute('aria-pressed')),
+    pal, palPick, palettes: clone(PALETTES), fx, atmo,
+    markers: clone(markers), routes: clone(routes), tags: tagsEl.innerHTML, countries: document.getElementById('ctCount').textContent
+  };
+}
+function restore(s) {
+  inspector.querySelectorAll('input.fill').forEach((r, i) => { r.value = s.ranges[i]; r.dispatchEvent(new Event('input')); });
+  pressables(inspector).forEach((b, i) => b.setAttribute('aria-pressed', s.pressed[i]));
+  PALETTES.splice(0, PALETTES.length, ...s.palettes); pal = s.pal; palPick = s.palPick; paintPalette();
+  fx = s.fx; renderFx(); setAtmo(s.atmo);
+  markers = s.markers; routes = s.routes; renderMarkers();
+  tagsEl.innerHTML = s.tags; document.getElementById('ctCount').textContent = s.countries;
+  syncFormatFromDOM();
+}
+function resetStyle() {
+  restoreControls(inspector);
+  PALETTES.splice(0, PALETTES.length, ...clone(DEFAULT_PALETTES)); pal = 0; palPick = 0; paintPalette();
+  fx = 'radar'; renderFx(); setAtmo(DEFAULT_ATMO);
+  syncFormatFromDOM();
+}
+function resetAll() {
+  resetStyle();
+  markers = []; routes = []; renderMarkers();
+  tagsEl.innerHTML = ''; document.getElementById('ctCount').textContent = '0';
+}
+
+const plural = (n, f) => f[(n % 10 === 1 && n % 100 !== 11) ? 0 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 1 : 2];
+const resetBtn = document.getElementById('resetBtn'), resetPop = document.getElementById('resetPop');
+function openReset() {
+  pop.hidden = true; exportBtn.setAttribute('aria-expanded', 'false');
+  const m = markers.length, r = routes.length, c = +document.getElementById('ctCount').textContent;
+  const parts = [m && `${m} ${plural(m, ['метка', 'метки', 'меток'])}`, r && `${r} ${plural(r, ['маршрут', 'маршрута', 'маршрутов'])}`, c && `${c} ${plural(c, ['страна', 'страны', 'стран'])}`].filter(Boolean);
+  document.getElementById('resetAllNote').textContent = parts.length
+    ? `Ещё удалятся ${parts.length > 1 ? parts.slice(0, -1).join(', ') + ' и ' + parts[parts.length - 1] : parts[0]}.`
+    : 'Меток, маршрутов и выделенных стран сейчас нет.';
+  resetPop.style.left = Math.max(16, resetBtn.offsetLeft - 120) + 'px';
+  resetPop.hidden = false; resetBtn.setAttribute('aria-expanded', 'true');
+  document.getElementById('resetCancel').focus();
+}
+function closeReset() { resetPop.hidden = true; resetBtn.setAttribute('aria-expanded', 'false'); }
+resetBtn.addEventListener('click', () => (resetPop.hidden ? openReset() : closeReset()));
+document.getElementById('resetCancel').addEventListener('click', closeReset);
+document.getElementById('resetScope').addEventListener('click', e => {
+  const b = e.target.closest('[data-scope]');
+  if (b) document.querySelectorAll('#resetScope button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+});
+document.addEventListener('pointerdown', e => { if (!resetPop.hidden && !resetPop.contains(e.target) && !resetBtn.contains(e.target)) closeReset(); });
+
+// toast with undo
+const toastEl = document.getElementById('toast');
+document.getElementById('stage').append(toastEl);   // sits on the canvas, just above the action pill
+let undoSnap = null, toastTimer = 0;
+function showToast(text, snap) {
+  undoSnap = snap;
+  document.getElementById('toastText').textContent = text;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl.classList.remove('show'); undoSnap = null; }, 6000);
+}
+function undoReset() {
+  if (!undoSnap) return false;
+  restore(undoSnap); undoSnap = null;
+  toastEl.classList.remove('show'); clearTimeout(toastTimer);
+  pushHistory();
+  return true;
+}
+document.getElementById('toastUndo').addEventListener('click', undoReset);
+document.getElementById('resetConfirm').addEventListener('click', () => {
+  const all = document.querySelector('#resetScope [aria-pressed="true"]').dataset.scope === 'all';
+  const snap = snapshot();
+  if (all) resetAll(); else resetStyle();
+  closeReset(); pushHistory();
+  showToast(all ? 'Всё сброшено' : 'Стиль сброшен', snap);
+});
+window.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && undoSnap && !/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) { e.preventDefault(); undoReset(); }
+  if (e.key === 'Escape' && !resetPop.hidden) closeReset();
+});
+
+// section buttons in card headers: reset or shuffle just that section
+inspector.addEventListener('click', e => {
+  const b = e.target.closest('.card-h .ibtn');
+  if (!b) return;
+  const card = b.closest('.card'), snap = snapshot();
+  if (b.title === 'Сбросить секцию') {
+    restoreControls(card);
+    if (card.querySelector('#palette')) { PALETTES.splice(0, PALETTES.length, ...clone(DEFAULT_PALETTES)); pal = 0; palPick = 0; paintPalette(); setAtmo(DEFAULT_ATMO); }
+    showToast(`Секция «${card.querySelector('h3').textContent}» сброшена`, snap);
+  } else if (b.title === 'Перемешать секцию') {
+    card.querySelectorAll('input.fill').forEach(r => { r.value = +r.min + Math.round(Math.random() * (r.max - r.min)); r.dispatchEvent(new Event('input')); });
+    card.querySelectorAll('[data-seg]').forEach(s => { const bs = s.querySelectorAll(':scope > button:not([disabled])'), pick = bs[(Math.random() * bs.length) | 0]; bs.forEach(x => x.setAttribute('aria-pressed', String(x === pick))); });
+    showToast(`Секция «${card.querySelector('h3').textContent}» перемешана`, snap);
+  }
+  pushHistory();
+});
+
+// ---------- globe sketch ----------
+let LAND = null;
+function decodeLand(m) {
+  const s = atob(m.rle), bits = new Uint8Array(m.w * m.h);
+  let p = 0;
+  const next = () => { let n = 0, sh = 0, b; do { b = s.charCodeAt(p++); n |= (b & 127) << sh; sh += 7; } while (b & 128); return n; };
+  for (let r = 0, i = 0; r < m.h; r++, i += m.w) for (let c = 0, v = 0; c < m.w; v ^= 1) { const n = next(); if (v) bits.fill(1, i + c, i + c + n); c += n; }
+  return { w: m.w, h: m.h, bits };
+}
+function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.append(s); }); }
+
+let dots = [];
+function buildDots(N) {
+  dots = [];
+  for (let i = 0; i < N; i++) {
+    const lat = -Math.PI / 2 + (i + 0.5) * Math.PI / N, count = Math.max(1, Math.round(2 * N * Math.cos(lat)));
+    for (let j = 0; j < count; j++) {
+      const lon = -Math.PI + (j + 0.5) * 2 * Math.PI / count;
+      let land;
+      if (LAND) {
+        const x = Math.floor((lon + Math.PI) / (2 * Math.PI) * LAND.w) % LAND.w, y = Math.min(LAND.h - 1, Math.floor((Math.PI / 2 - lat) / Math.PI * LAND.h));
+        land = LAND.bits[y * LAND.w + x] === 1;
+      } else land = Math.sin(lon * 3 + Math.sin(lat * 4) * 2) + Math.cos(lat * 5) > 0.6;
+      if (land) dots.push([Math.cos(lat) * Math.sin(lon), Math.sin(lat), Math.cos(lat) * Math.cos(lon)]);
+    }
+  }
+}
+
+const cv = document.getElementById('globe'), g = cv.getContext('2d'), stage = document.getElementById('stage');
+let W = 0, H = 0;
+function fit() {
+  const s = Math.max(200, Math.min(stage.clientWidth - 80, stage.clientHeight - 160));
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.style.width = cv.style.height = s + 'px';
+  W = H = cv.width = cv.height = Math.round(s * dpr);
+}
+new ResizeObserver(fit).observe(stage);
+
+const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+// the globe always starts rotating; with "reduce motion" in the OS it just turns slower
+const ROT_SPEED = matchMedia('(prefers-reduced-motion: reduce)').matches ? 2 : 6;
+let yaw = -20, pitch = 24, playing = true, last = performance.now(), time = 0;
+
+function drawGlobe(ctx, w, h, palette, t, yawDeg, sizeK = 1) {
+  const R = Math.min(w, h) * 0.42, cx = w / 2, cy = h / 2;
+  const y = yawDeg * Math.PI / 180, p = pitch * Math.PI / 180, cyw = Math.cos(y), syw = Math.sin(y), cp = Math.cos(p), sp = Math.sin(p);
+  const a = hex2rgb(atmo);
+  const halo = ctx.createRadialGradient(cx, cy, R * 0.9, cx, cy, R * 1.35);
+  halo.addColorStop(0, `rgba(${a},0.22)`); halo.addColorStop(1, `rgba(${a},0)`);
+  ctx.fillStyle = halo; ctx.fillRect(0, 0, w, h);
+  const LV = 8, cols = [], buckets = Array.from({ length: LV + 1 }, () => []);
+  const c0 = hex2rgb(palette[0]), c1 = hex2rgb(palette[1]), c2 = hex2rgb(palette[2]);
+  for (let i = 0; i < LV; i++) { const k = i / (LV - 1); cols.push(k < 0.5 ? mix(c0, c1, k * 2) : mix(c1, c2, (k - 0.5) * 2)); }
+  const sweep = (t * 0.2 % 1) * Math.PI * 2 - Math.PI, breath = 0.5 - 0.5 * Math.cos(t * 1.6);
+  const step = Math.PI / 110, base = R * step * 0.42 * sizeK;
+  for (const d of dots) {
+    const x1 = d[0] * cyw + d[2] * syw, z1 = -d[0] * syw + d[2] * cyw;
+    const y2 = d[1] * cp - z1 * sp, z2 = d[1] * sp + z1 * cp;
+    if (z2 < 0) { buckets[LV].push(cx + x1 * R, cy - y2 * R, base * 0.5); continue; }
+    let lv = Math.min(LV - 1, Math.floor((1 - z2) * LV));
+    if (fx === 'radar') { const dl = ((sweep - Math.atan2(x1, z2)) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2); if (dl < 0.5) lv = 0; }
+    else if (fx === 'breath' && breath > 0.6) lv = Math.max(0, lv - 2);
+    else if (fx === 'scan') { if (Math.abs(y2 - (1.2 - 2.4 * (t * 0.25 % 1))) < 0.06) lv = 0; }
+    buckets[lv].push(cx + x1 * R, cy - y2 * R, base * (0.3 + 0.7 * z2));
+  }
+  const draw = (arr, color, alpha) => {
+    ctx.fillStyle = `rgba(${color},${alpha})`;
+    ctx.beginPath();
+    for (let i = 0; i < arr.length; i += 3) { ctx.moveTo(arr[i] + arr[i + 2], arr[i + 1]); ctx.arc(arr[i], arr[i + 1], arr[i + 2], 0, Math.PI * 2); }
+    ctx.fill();
+  };
+  draw(buckets[LV], cols[2], 0.08);
+  for (let i = LV - 1; i >= 0; i--) draw(buckets[i], cols[i], 1);
+}
+
+function frameLoop(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (playing) { time += dt; if (!dragging) yaw += ROT_SPEED * dt; }
+  g.clearRect(0, 0, W, H);
+  drawGlobe(g, W, H, PALETTES[pal], time, yaw);
+  if (!preview.hidden) {
+    pvCtx.fillStyle = '#000'; pvCtx.fillRect(0, 0, pvCanvas.width, pvCanvas.height);
+    drawGlobe(pvCtx, pvCanvas.width, pvCanvas.height, PALETTES[pal], time, yaw);
+  }
+  requestAnimationFrame(frameLoop);
+}
+
+let dragging = false, px0 = 0, py0 = 0;
+cv.addEventListener('pointerdown', e => { dragging = true; px0 = e.clientX; py0 = e.clientY; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  yaw += (e.clientX - px0) * 0.4; pitch = Math.max(-80, Math.min(80, pitch + (e.clientY - py0) * 0.4));
+  px0 = e.clientX; py0 = e.clientY;
+});
+cv.addEventListener('pointerup', () => { dragging = false; });
+
+// play / pause: the button shows what a click will do
+const playBtn = document.getElementById('play');
+function syncPlay() {
+  playBtn.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+  playBtn.setAttribute('aria-label', playing ? 'Пауза' : 'Пуск');
+  playBtn.title = playing ? 'Пауза (пробел)' : 'Пуск (пробел)';
+}
+playBtn.addEventListener('click', () => { playing = !playing; syncPlay(); });
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) { e.preventDefault(); playing = !playing; syncPlay(); }
+});
+syncPlay();
+
+function drawPresets() {
+  presetsEl.querySelectorAll('canvas').forEach((c, i) => {
+    const ctx = c.getContext('2d'), p = PRESETS[i][1];
+    ctx.fillStyle = p === -1 ? '#efede8' : i === 4 ? '#0d2c6e' : '#000'; ctx.fillRect(0, 0, 160, 160);
+    const keep = atmo; atmo = p === -1 ? '#efede8' : PALETTES[Math.max(0, p)][2];
+    drawGlobe(ctx, 160, 160, p === -1 ? ['#1c1d1f', '#1c1d1f', '#1c1d1f', '#1c1d1f'] : PALETTES[p], 0, -20 + i * 40, 2.4);
+    atmo = keep;
+  });
+}
+
+syncFrame();
+(async () => {
+  for (const src of ['../data/land-mask.js', 'data/land-mask.js']) {
+    try { await loadScript(src); if (window.LAND_MASK) { LAND = decodeLand(window.LAND_MASK); break; } } catch (e) { /* try the next path */ }
+  }
+  buildDots(110);
+  fit();
+  drawPresets();
+  requestAnimationFrame(t => { last = t; frameLoop(t); });
+})();
+})();
+</script>

@@ -1,0 +1,242 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Выбор размера: варианты</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap">
+<style>
+/* Layout: three variant columns side by side, each with a live demo in an inspector card, sources and trade-offs. Dark only, desktop only. */
+:root {
+  --bg: #0b0b0c;
+  --surface: #131315;
+  --card: #1a1a1d;
+  --field: #232327;
+  --field-2: #2e2e33;
+  --line: rgba(255, 255, 255, 0.06);
+  --text: #f2f2f3;
+  --muted: #8e8e93;
+  --dim: #5c5c61;
+  --accent: #7c5cff;
+  --sel: #7c5cff;
+  --ok: #3dd68c;
+  --err: #f2555a;
+  --r-pill: 999px;
+  --font: "Geist", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; cursor: pointer; }
+svg { display: block; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: var(--muted); text-underline-offset: 3px; }
+a:hover { color: var(--text); }
+
+.page { min-width: 1280px; max-width: 1400px; margin: 0 auto; padding: 32px 32px 48px; display: grid; gap: 24px; }
+header h1 { margin: 0 0 6px; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--muted); max-width: 72ch; }
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
+.variant { background: var(--surface); border-radius: 24px; padding: 20px; display: grid; gap: 16px; }
+.variant.rec { box-shadow: inset 0 0 0 1.5px var(--sel); }
+.vh { display: flex; align-items: center; gap: 10px; }
+.vh .letter { width: 30px; height: 30px; border-radius: 10px; background: var(--field); display: grid; place-items: center; font-weight: 600; }
+.vh h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.badge { margin-left: auto; height: 26px; padding: 0 10px; border-radius: 9px; display: inline-flex; align-items: center; font-size: 12.5px; font-weight: 500; color: #cfc4ff; background: rgba(124, 92, 255, 0.18); }
+.lead { margin: -6px 0 0; color: var(--muted); }
+
+.card { background: var(--card); border-radius: 20px; padding: 16px; display: grid; gap: 18px; }
+.ctl { display: grid; gap: 10px; }
+.ctl-h { display: flex; align-items: baseline; justify-content: space-between; }
+.ctl-h span { color: var(--muted); }
+.ctl-h b { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* A: segments */
+.seg { display: flex; background: var(--field); border-radius: var(--r-pill); padding: 4px; gap: 2px; }
+.seg button { flex: 1; height: 36px; border: 0; background: transparent; border-radius: var(--r-pill); color: var(--muted); font-weight: 500; }
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1.5px var(--sel); }
+.seg.two button { height: 48px; border-radius: 16px; display: grid; align-content: center; gap: 1px; line-height: 1.15; }
+.seg.two { border-radius: 20px; }
+.seg.two small { font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.seg.two button[aria-pressed="true"] small { color: var(--muted); }
+
+/* B: preview tiles */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tile { border: 0; background: var(--field); border-radius: 14px; padding: 0 0 8px; display: grid; justify-items: center; align-content: end; gap: 6px; color: var(--muted); height: 92px; }
+.tile:hover { color: var(--text); }
+.tile[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1.5px var(--sel); }
+.tile .lab { font-weight: 600; font-size: 13px; color: var(--text); }
+.tile small { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; margin-top: -4px; }
+.mk { display: inline-flex; align-items: center; gap: 3px; background: rgba(14, 18, 16, 0.9); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 0 .5em 0 .35em; height: 1.9em; font-size: 7px; color: #fff; white-space: nowrap; }
+.mk svg { color: var(--accent); width: 1.1em; height: 1.1em; }
+.stage { flex: 1; display: grid; place-items: center; width: 100%; }
+.sq { border: 2px solid currentColor; border-radius: 4px; opacity: .8; }
+
+/* C: notched slider */
+.notch { position: relative; height: 56px; touch-action: none; cursor: pointer; }
+.notch .track { position: absolute; left: 12px; right: 12px; top: 14px; height: 8px; border-radius: 4px; background: var(--field-2); }
+.notch .fill { position: absolute; left: 12px; top: 14px; height: 8px; border-radius: 4px; background: #4a4a51; }
+.notch .stop { position: absolute; top: 14px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--dim); }
+.notch .knob { position: absolute; top: 4px; width: 28px; height: 28px; margin-left: -14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); transition: left .15s; }
+.notch .labs { position: absolute; left: 12px; right: 12px; top: 36px; height: 16px; }
+.notch .labs span { position: absolute; transform: translateX(-50%); font-size: 12.5px; color: var(--dim); font-weight: 500; white-space: nowrap; }
+.notch .labs span.on { color: var(--text); }
+.pillv { height: 28px; padding: 0 10px; border-radius: 9px; background: var(--field); font-weight: 500; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; }
+
+/* notes */
+.where { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.where b { color: var(--text); font-weight: 500; }
+.pc { display: grid; gap: 6px; font-size: 13px; }
+.pc div { display: grid; grid-template-columns: 16px 1fr; gap: 8px; color: var(--muted); }
+.pc .p svg { color: var(--ok); }
+.pc .c svg { color: var(--err); }
+.pc svg { margin-top: 2px; }
+.verdict { background: var(--surface); border-radius: 24px; padding: 20px 24px; display: grid; gap: 8px; }
+.verdict h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.verdict p { margin: 0; color: var(--muted); max-width: 90ch; }
+@media (prefers-reduced-motion: reduce) { .notch .knob { transition: none; } }
+</style>
+
+<div class="page">
+  <header>
+    <h1>Выбор размера: три варианта</h1>
+    <p>Компонент нужен в двух местах: размер меток (S, M, L, XL) и качество экспорта (1×–4× от кадра 1080 × 1080). Все примеры живые, можно нажимать. Выбранное — фиолетовая обводка без смены заливки.</p>
+  </header>
+
+  <div class="cols">
+    <!-- A -->
+    <section class="variant rec">
+      <div class="vh"><span class="letter">A</span><h2>Сегменты</h2><span class="badge">Рекомендую</span></div>
+      <p class="lead">Все значения подписаны и видны сразу, выбор в один клик. У качества под множителем итоговый размер.</p>
+      <div class="card">
+        <div class="ctl">
+          <div class="ctl-h"><span>Размер меток</span></div>
+          <div class="seg" data-group="a-size">
+            <button type="button" aria-pressed="false">S</button>
+            <button type="button" aria-pressed="true">M</button>
+            <button type="button" aria-pressed="false">L</button>
+            <button type="button" aria-pressed="false">XL</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <div class="ctl-h"><span>Качество</span></div>
+          <div class="seg two" data-group="a-q">
+            <button type="button" aria-pressed="false">1×<small>1080</small></button>
+            <button type="button" aria-pressed="true">2×<small>2160</small></button>
+            <button type="button" aria-pressed="false">3×<small>3240</small></button>
+            <button type="button" aria-pressed="false">4×<small>4320</small></button>
+          </div>
+        </div>
+      </div>
+      <div class="where">
+        <span><b>Где так сделано:</b> <a href="https://mobbin.com/screens/c5d3d4ad-7d3b-447d-8e94-4019c6b65c7a" target="_blank" rel="noopener">Higgsfield</a> (scale factor x1 x2 x4), <a href="https://mobbin.com/screens/47b549a4-9c26-488e-a885-b275effe1e3f" target="_blank" rel="noopener">Leonardo</a> (Low / Mid / High / Ultra), <a href="https://mobbin.com/screens/03c088ac-2a6c-4513-8376-786fd8339eb8" target="_blank" rel="noopener">Customer.io</a> (уровень сжатия), ваш третий реф (Original / Spanish / French).</span>
+      </div>
+      <div class="pc">
+        <div class="p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Тот же компонент, что «Раскладка» и «Окраска» — меньше разных контролов в интерфейсе.</div>
+        <div class="p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Самый компактный по высоте, все подписи видны без наведения.</div>
+        <div class="c"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>Не видно, насколько метка M больше S, — только буква.</div>
+        <div class="c"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>Больше 5 значений в ширину 340 px уже не помещается.</div>
+      </div>
+    </section>
+
+    <!-- B -->
+    <section class="variant">
+      <div class="vh"><span class="letter">B</span><h2>Плитки с превью</h2></div>
+      <p class="lead">Каждая плитка показывает, как будет выглядеть результат: метка в своём размере, кадр в своём масштабе.</p>
+      <div class="card">
+        <div class="ctl">
+          <div class="ctl-h"><span>Размер меток</span></div>
+          <div class="tiles" data-group="b-size">
+            <button class="tile" type="button" aria-pressed="false"><span class="stage"><span class="mk" style="font-size:7.5px"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/></svg>Дубай</span></span><span class="lab">S</span></button>
+            <button class="tile" type="button" aria-pressed="true"><span class="stage"><span class="mk" style="font-size:9px"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/></svg>Дубай</span></span><span class="lab">M</span></button>
+            <button class="tile" type="button" aria-pressed="false"><span class="stage"><span class="mk" style="font-size:10.5px"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/></svg>Дубай</span></span><span class="lab">L</span></button>
+            <button class="tile" type="button" aria-pressed="false"><span class="stage"><span class="mk" style="font-size:12px"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/></svg>Дуб…</span></span><span class="lab">XL</span></button>
+          </div>
+        </div>
+        <div class="ctl">
+          <div class="ctl-h"><span>Качество</span></div>
+          <div class="tiles" data-group="b-q">
+            <button class="tile" type="button" aria-pressed="false"><span class="stage"><span class="sq" style="width:14px;height:14px"></span></span><span class="lab">1×</span><small>1080</small></button>
+            <button class="tile" type="button" aria-pressed="true"><span class="stage"><span class="sq" style="width:22px;height:22px"></span></span><span class="lab">2×</span><small>2160</small></button>
+            <button class="tile" type="button" aria-pressed="false"><span class="stage"><span class="sq" style="width:30px;height:30px"></span></span><span class="lab">3×</span><small>3240</small></button>
+            <button class="tile" type="button" aria-pressed="false"><span class="stage"><span class="sq" style="width:38px;height:38px"></span></span><span class="lab">4×</span><small>4320</small></button>
+          </div>
+        </div>
+      </div>
+      <div class="where">
+        <span><b>Где так сделано:</b> <a href="https://mobbin.com/screens/7c1ec195-8ad3-47db-983f-9a16438e11f5" target="_blank" rel="noopener">Grab</a> (размер посылки S M L), <a href="https://mobbin.com/screens/1219460e-1f76-42ed-95d9-3a4f8ba780b6" target="_blank" rel="noopener">Vestiaire</a> и <a href="https://mobbin.com/screens/79547ce3-be20-4a4a-99d9-3b7936779ad1" target="_blank" rel="noopener">Klarna</a> (сетка размеров), <a href="https://mobbin.com/screens/0c4b147b-e3a4-492b-b367-3610fe6cc60e" target="_blank" rel="noopener">Leonardo</a> (пропорции картинкой).</span>
+      </div>
+      <div class="pc">
+        <div class="p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Для меток лучший: сразу видно, как плашка будет смотреться.</div>
+        <div class="p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Совпадает с плитками «Формат кадра» и «Эффект поверх».</div>
+        <div class="c"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>В 2–3 раза выше сегментов, панель становится длиннее.</div>
+        <div class="c"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>Для качества превью почти ничего не добавляет: растущий квадрат не говорит больше, чем «2160».</div>
+      </div>
+    </section>
+
+    <!-- C -->
+    <section class="variant">
+      <div class="vh"><span class="letter">C</span><h2>Слайдер с делениями</h2></div>
+      <p class="lead">Как сейчас, но все подписи видны всегда, а ручка защёлкивается на делениях. Можно тянуть или нажимать на подпись.</p>
+      <div class="card">
+        <div class="ctl">
+          <div class="ctl-h"><span>Размер меток</span><span class="pillv" data-out="c-size">M</span></div>
+          <div class="notch" data-notch="c-size" data-labels="S,M,L,XL" data-outs="S,M,L,XL" data-v="1"></div>
+        </div>
+        <div class="ctl">
+          <div class="ctl-h"><span>Качество</span><span class="pillv" data-out="c-q">2160 × 2160 px</span></div>
+          <div class="notch" data-notch="c-q" data-labels="1×,2×,3×,4×" data-outs="1080 × 1080 px,2160 × 2160 px,3240 × 3240 px,4320 × 4320 px" data-v="1"></div>
+        </div>
+      </div>
+      <div class="where">
+        <span><b>Где так сделано:</b> ваш первый реф (Generate Image), <a href="https://mobbin.com/screens/47b549a4-9c26-488e-a885-b275effe1e3f" target="_blank" rel="noopener">Leonardo</a> (Upscale Multiplier), <a href="https://mobbin.com/screens/0dc105f4-8259-4396-bb88-979b3c4d9a66" target="_blank" rel="noopener">Apple Photos</a> (шкала с делениями).</span>
+      </div>
+      <div class="pc">
+        <div class="p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Похож на остальные слайдеры, легко добавить 5–6 шагов.</div>
+        <div class="p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Итог крупно справа в заголовке, не теряется.</div>
+        <div class="c"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>Слайдер обещает плавность, а значений всего четыре — ожидание не совпадает с поведением.</div>
+        <div class="c"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>Легко спутать с числовыми слайдерами рядом, у которых значение меняется плавно.</div>
+      </div>
+    </section>
+  </div>
+
+  <section class="verdict">
+    <h3>Что предлагаю</h3>
+    <p>Сегменты (A) для обоих мест: это тот же контрол, что уже стоит в «Раскладке» и «Окраске», он самый компактный, а итоговый размер подписан прямо под множителем. Если для меток важно видеть размер плашки до выбора, можно взять плитки (B) только там — они совпадают с плитками формата кадра.</p>
+  </section>
+</div>
+
+<script>
+(() => {
+'use strict';
+document.querySelectorAll('[data-group]').forEach(g => g.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || !g.contains(b)) return;
+  g.querySelectorAll(':scope > button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+}));
+
+// notched slider: snaps to stops, every label always visible
+document.querySelectorAll('[data-notch]').forEach(n => {
+  const labels = n.dataset.labels.split(','), outs = n.dataset.outs.split(','), out = document.querySelector(`[data-out="${n.dataset.notch}"]`);
+  const k = labels.length - 1;
+  n.innerHTML = `<span class="track"></span><span class="fill"></span>${labels.map((_, i) => `<span class="stop" style="left:calc(12px + (100% - 24px) * ${i / k})"></span>`).join('')}<span class="knob" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="${k}"></span><span class="labs">${labels.map((l, i) => `<span style="left:${i / k * 100}%">${l}</span>`).join('')}</span>`;
+  const knob = n.querySelector('.knob'), fill = n.querySelector('.fill'), labs = n.querySelectorAll('.labs span');
+  const set = v => {
+    v = Math.max(0, Math.min(k, v)); n.dataset.v = v;
+    knob.style.left = `calc(12px + (100% - 24px) * ${v / k})`;
+    fill.style.width = `calc((100% - 24px) * ${v / k})`;
+    labs.forEach((s, i) => s.classList.toggle('on', i === v));
+    out.textContent = outs[v];
+    knob.setAttribute('aria-valuenow', v); knob.setAttribute('aria-valuetext', labels[v]);
+  };
+  const fromX = x => { const r = n.getBoundingClientRect(); return Math.round((x - r.left - 12) / (r.width - 24) * k); };
+  n.addEventListener('pointerdown', e => { n.setPointerCapture(e.pointerId); set(fromX(e.clientX)); n.onpointermove = m => set(fromX(m.clientX)); });
+  n.addEventListener('pointerup', () => { n.onpointermove = null; });
+  knob.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); set(+n.dataset.v + 1); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); set(+n.dataset.v - 1); }
+  });
+  set(+n.dataset.v);
+});
+})();
+</script>
