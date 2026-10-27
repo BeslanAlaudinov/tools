@@ -69,6 +69,33 @@ export const Download = make(
     <path d="M5 21h14" />
   </>,
 );
+export const Upload = make(
+  <>
+    <rect x="3" y="3" width="18" height="18" rx="4" />
+    <path d="M12 16V8" />
+    <path d="m8.5 11.5 3.5-3.5 3.5 3.5" />
+  </>,
+  { strokeWidth: 1.5 },
+);
+export const UploadArrow = make(
+  <>
+    <path d="M12 15V4" />
+    <path d="m7 9 5-5 5 5" />
+    <path d="M5 20h14" />
+  </>,
+);
+export const Person = make(
+  <>
+    <circle cx="12" cy="7" r="3" />
+    <path d="M6 21v-3a6 6 0 0 1 12 0v3" />
+  </>,
+);
+export const Compare = make(
+  <>
+    <rect x="3" y="4" width="18" height="16" rx="3" />
+    <path d="M12 4v16" />
+  </>,
+);
 export const Eye = make(
   <>
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />

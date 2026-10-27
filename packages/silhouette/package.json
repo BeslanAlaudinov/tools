@@ -1,0 +1,18 @@
+{
+  "name": "@tools/silhouette",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Движок теплового силуэта: из PNG или SVG делает свечение с градиентом от края к сердцевине. Без UI.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "3.2.7"
+  }
+}

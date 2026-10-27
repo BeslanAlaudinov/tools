@@ -2,12 +2,14 @@
 
 Как запускать и как устроен код — в [README.md](README.md). Здесь решения и план.
 
-| Инструмент      | Где                                     | Состояние                                                                        |
-| --------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
-| Globe           | `apps/web` → `/globe`, `packages/globe` | Перенесён в проект (2026-10-27)                                                  |
-| Тепловой силуэт | `prototypes/thermal-silhouette.html`    | Прототип, https://claude.ai/artifact/3qVUMbvq21g4pxsFJFWTYv — перенести в проект |
-| Глобус-прототип | `prototypes/dot-globe.html`             | Прототип, https://claude.ai/artifact/2bnrEwTrBDKtQKKmuYS4s2                      |
-| Макет оболочки  | `prototypes/mockups/shell-globe.html`   | https://claude.ai/artifact/FkzEsyfY323EgVtvTJiGjE                                |
+| Инструмент      | Где                                               | Состояние                                                   |
+| --------------- | ------------------------------------------------- | ----------------------------------------------------------- |
+| Globe           | `apps/web` → `/globe`, `packages/globe`           | Перенесён в проект (2026-10-27)                             |
+| Силуэт          | `apps/web` → `/silhouette`, `packages/silhouette` | Перенесён в проект (2026-10-27)                             |
+| Силуэт-прототип | `prototypes/thermal-silhouette.html`              | Прототип, https://claude.ai/artifact/3qVUMbvq21g4pxsFJFWTYv |
+| Макет силуэта   | `prototypes/mockups/shell-silhouette.html`        | Макет оболочки силуэта                                      |
+| Глобус-прототип | `prototypes/dot-globe.html`                       | Прототип, https://claude.ai/artifact/2bnrEwTrBDKtQKKmuYS4s2 |
+| Макет оболочки  | `prototypes/mockups/shell-globe.html`             | https://claude.ai/artifact/FkzEsyfY323EgVtvTJiGjE           |
 
 ## Стек (решено 2026-10-26)
 
@@ -35,7 +37,7 @@
 
 ## Дальше
 
-1. **Перенести «Тепловой силуэт»** в `packages/silhouette` + страницу в оболочке.
+1. **Силуэт: образцы** — картинки для быстрого старта, пришлёт автор; встроить в пустое состояние.
 2. **Пакеты для вкладки «Код»:** `@tools/globe-react` и Web Component `<globe-view>` (сейчас вкладка показывает, как будет выглядеть код).
 3. **Экспорт видео** (записано по просьбе):
    - WebM (WebCodecs / MediaRecorder), позже MP4.

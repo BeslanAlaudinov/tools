@@ -9,7 +9,7 @@ export default function config(phase: string): NextConfig {
     reactStrictMode: true,
     poweredByHeader: false,
     // workspace packages ship TypeScript sources
-    transpilePackages: ['@tools/ui', '@tools/globe'],
+    transpilePackages: ['@tools/ui', '@tools/globe', '@tools/silhouette'],
     // the site has no server code: `next build` writes plain files to out/, which any static host can serve
     output: 'export',
     // /globe/ → globe/index.html, which static hosts resolve without rewrite rules

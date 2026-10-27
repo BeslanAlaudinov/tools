@@ -2,7 +2,10 @@ import Link from 'next/link';
 import styles from './page.module.css';
 
 // Placeholder until the library home is designed: lists the tools that already exist.
-const TOOLS = [{ href: '/globe', name: 'Globe', text: 'Земля из точек: страны, метки, маршруты, эффекты' }];
+const TOOLS = [
+  { href: '/globe', name: 'Globe', text: 'Земля из точек: страны, метки, маршруты, эффекты' },
+  { href: '/silhouette', name: 'Силуэт', text: 'Тепловое свечение из PNG или SVG: ореол по краю, цвет к сердцевине' },
+];
 
 export default function LibraryPage() {
   return (

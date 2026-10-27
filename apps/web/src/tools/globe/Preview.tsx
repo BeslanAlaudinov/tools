@@ -2,9 +2,8 @@
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { GlobeEngine, frameSize, type GlobeView } from '@tools/globe';
-import { Pill } from '@tools/ui';
+import { Pill, fitFrame } from '@tools/ui';
 import { useEffect, useRef, useState } from 'react';
-import { fitFrame } from './GlobeCanvas';
 import { useGlobeStore } from './store';
 
 /** The frame alone, without the interface: a second engine that follows the same settings. */

@@ -208,8 +208,11 @@ export function ConfirmPopover({
 
 export type ExportKind = 'image' | 'code';
 
-/** "Export" button and popover: an image tab and a code tab; video is announced but not ready. */
-export function ExportPopover({ size, image, code }: { size: string; image: ReactNode; code: ReactNode }) {
+/**
+ * "Export" button and popover: an image tab and, for tools that have one, a code tab; video is announced but not
+ * ready. Without a code tab there is no tab switch at all.
+ */
+export function ExportPopover({ size, image, code }: { size: string; image: ReactNode; code?: ReactNode }) {
   const [kind, setKind] = useState<ExportKind>('image');
   return (
     <Popover.Root>
@@ -225,25 +228,27 @@ export function ExportPopover({ size, image, code }: { size: string; image: Reac
             <h4>Экспорт</h4>
             {kind === 'image' && <span className="t-size">{size}</span>}
           </div>
-          <Segmented<ExportKind | 'video'>
-            label="Что экспортировать"
-            value={kind}
-            onChange={v => v !== 'video' && setKind(v)}
-            options={[
-              { value: 'image', label: 'Картинка' },
-              { value: 'code', label: 'Код' },
-              {
-                value: 'video',
-                label: (
-                  <>
-                    Видео <span className="t-soon">скоро</span>
-                  </>
-                ),
-                disabled: true,
-              },
-            ]}
-          />
-          {kind === 'image' ? image : code}
+          {code !== undefined && (
+            <Segmented<ExportKind | 'video'>
+              label="Что экспортировать"
+              value={kind}
+              onChange={v => v !== 'video' && setKind(v)}
+              options={[
+                { value: 'image', label: 'Картинка' },
+                { value: 'code', label: 'Код' },
+                {
+                  value: 'video',
+                  label: (
+                    <>
+                      Видео <span className="t-soon">скоро</span>
+                    </>
+                  ),
+                  disabled: true,
+                },
+              ]}
+            />
+          )}
+          {kind === 'image' || code === undefined ? image : code}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
