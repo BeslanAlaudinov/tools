@@ -194,6 +194,33 @@ export const DEFAULT_SETTINGS: GlobeSettings = {
   preset: 'amethyst',
 };
 
+/** Version of the saved-settings format. Bump it together with a new step in `migrateSettings`. */
+export const SETTINGS_VERSION = 2;
+
+const OLD_DEFAULT_MARKER = { label: 'Нидерланды', lat: 52.37, lon: 4.9 };
+
+/**
+ * Brings settings saved by an older version up to date. A step changes only what the user left as it was.
+ * v1 → v2: the default marker moved from the Netherlands to Grozny. A marker still exactly the old default
+ * (same name, same spot) moves too and keeps its id, so routes from it stay attached.
+ */
+export function migrateSettings(saved: unknown, fromVersion: number): unknown {
+  if (!saved || typeof saved !== 'object') return saved;
+  const s = { ...(saved as Record<string, unknown>) };
+  if (fromVersion < 2 && Array.isArray(s.markers)) {
+    const target = DEFAULT_SETTINGS.markers[0]!;
+    s.markers = s.markers.map((m: unknown) => {
+      const mk = m as Partial<Marker> | null;
+      const untouched =
+        mk?.label === OLD_DEFAULT_MARKER.label &&
+        mk.lat === OLD_DEFAULT_MARKER.lat &&
+        mk.lon === OLD_DEFAULT_MARKER.lon;
+      return untouched ? { ...mk, label: target.label, lat: target.lat, lon: target.lon } : m;
+    });
+  }
+  return s;
+}
+
 /** Keys that belong to content the user built by hand. "Reset style" keeps them. */
 export const CONTENT_KEYS = ['countries', 'markers', 'routes'] as const satisfies readonly (keyof GlobeSettings)[];
 

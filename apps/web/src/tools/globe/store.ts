@@ -6,6 +6,8 @@ import {
   DEFAULT_VIEW,
   FRAME_KEYS,
   PRESETS,
+  SETTINGS_VERSION,
+  migrateSettings,
   type GlobeSettings,
   type GlobeView,
 } from '@tools/globe';
@@ -69,7 +71,12 @@ export const useGlobeStore = create<GlobeState>()(
       }),
       {
         name: 'tools.globe',
-        version: 1,
+        version: SETTINGS_VERSION,
+        // settings saved by an older version: update what the user never changed (see migrateSettings)
+        migrate: (persisted, version) => {
+          const p = (persisted ?? {}) as { settings?: unknown };
+          return { ...p, settings: migrateSettings(p.settings, version) };
+        },
         storage: createJSONStorage(() => localStorage),
         // the server renders defaults; the saved state is loaded after mount to keep hydration clean
         skipHydration: true,

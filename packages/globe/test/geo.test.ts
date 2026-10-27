@@ -21,6 +21,7 @@ import {
   alignOffset,
   applyPreset,
   frameSize,
+  migrateSettings,
   resetSettings,
 } from '../src/settings';
 import { hsl, randomLook } from '../src/shuffle';
@@ -221,5 +222,24 @@ describe('cities', () => {
   it('names a hand-placed point after the closest city, if one is near', () => {
     expect(nearestCity(cities, 55.7, 49.2)?.name).toBe('Казань');
     expect(nearestCity(cities, 0, -140)).toBeNull(); // the middle of the Pacific
+  });
+});
+
+describe('saved settings', () => {
+  it('moves the untouched old default marker to Grozny and leaves the rest', () => {
+    const saved = {
+      markers: [
+        { id: 1, label: 'Нидерланды', lat: 52.37, lon: 4.9 },
+        { id: 2, label: 'Нью-Йорк', lat: 40.71, lon: -74.01 },
+        { id: 3, label: 'Нидерланды', lat: 52, lon: 5 }, // placed by the user: stays
+      ],
+      routes: [{ id: 1, from: 1, to: 2 }],
+    };
+    const next = migrateSettings(saved, 1) as typeof saved;
+    expect(next.markers[0]).toEqual({ id: 1, label: 'Грозный', lat: 43.32, lon: 45.7 });
+    expect(next.markers[1]).toBe(saved.markers[1]);
+    expect(next.markers[2]).toBe(saved.markers[2]);
+    expect(next.routes).toBe(saved.routes); // the route keeps pointing at marker 1
+    expect(migrateSettings(saved, 2)).toEqual(saved); // already current: nothing changes
   });
 });
